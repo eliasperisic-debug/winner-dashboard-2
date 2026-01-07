@@ -627,11 +627,13 @@ export function Analytics({ winners }: AnalyticsProps) {
       {/* Two Column Layout for Brand Comparison */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* KIKOFF Analysis */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-3 h-3 rounded-full bg-blue-500" />
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">KIKOFF</h3>
-            <span className="text-sm text-slate-500 dark:text-slate-400">({kikoffWinners.length} winners)</span>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border-2 border-[#00C853]/30 dark:border-[#00C853]/40 p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <img src="/kikoff-logo.png" alt="Kikoff" className="w-10 h-10 rounded-xl shadow-sm" />
+            <div>
+              <h3 className="text-lg font-bold text-[#00913a] dark:text-[#4ade80]">KIKOFF</h3>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{kikoffWinners.length} winners</span>
+            </div>
           </div>
 
           {/* Duration */}
@@ -642,7 +644,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             </div>
             <div className="space-y-1.5">
               {Object.entries(kikoffDuration.ranges).map(([range, count]) => (
-                <ExpandableRow key={range} label={range} count={count} total={kikoffWinners.length} color="bg-blue-500" />
+                <ExpandableRow key={range} label={range} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
               ))}
             </div>
           </div>
@@ -665,7 +667,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             </div>
             <div className="space-y-1.5">
               {Object.entries(kikoffMention.ranges).map(([range, count]) => (
-                <ExpandableRow key={range} label={range} count={count} total={kikoffWinners.length} color="bg-blue-500" />
+                <ExpandableRow key={range} label={range} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
               ))}
             </div>
           </div>
@@ -680,7 +682,7 @@ export function Analytics({ winners }: AnalyticsProps) {
                   label={caps} 
                   count={count} 
                   total={kikoffWinners.length} 
-                  color="bg-blue-500"
+                  color="bg-[#00C853]"
                   subsections={kikoffCapsData.subsections[caps]}
                 />
               ))}
@@ -692,7 +694,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Top Themes</h4>
             <div className="space-y-1.5">
               {kikoffThemes.slice(0, 8).map(([theme, count]) => (
-                <ExpandableRow key={theme} label={theme} count={count} total={kikoffWinners.length} color="bg-blue-500" />
+                <ExpandableRow key={theme} label={theme} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
               ))}
             </div>
           </div>
@@ -702,7 +704,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Music Genres</h4>
             <div className="space-y-1.5">
               {kikoffMusic.length > 0 ? kikoffMusic.slice(0, 8).map(([genre, count]) => (
-                <ExpandableRow key={genre} label={genre} count={count} total={kikoffWinners.length} color="bg-blue-500" />
+                <ExpandableRow key={genre} label={genre} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
               )) : (
                 <div className="text-sm text-slate-500 dark:text-slate-400">No music data</div>
               )}
@@ -714,18 +716,20 @@ export function Analytics({ winners }: AnalyticsProps) {
             <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Text Overlay Styles</h4>
             <div className="space-y-1.5">
               {kikoffTextOverlay.slice(0, 6).map(([overlay, count]) => (
-                <ExpandableRow key={overlay} label={overlay} count={count} total={kikoffWinners.length} color="bg-blue-500" />
+                <ExpandableRow key={overlay} label={overlay} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
               ))}
             </div>
           </div>
         </div>
 
         {/* GRANT Analysis */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-3 h-3 rounded-full bg-emerald-500" />
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">GRANT</h3>
-            <span className="text-sm text-slate-500 dark:text-slate-400">({grantWinners.length} winners)</span>
+        <div className="bg-white dark:bg-slate-800 rounded-xl border-2 border-amber-400/30 dark:border-amber-400/40 p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <img src="/grant-logo.png" alt="Grant" className="w-10 h-10 rounded-xl shadow-sm" />
+            <div>
+              <h3 className="text-lg font-bold text-amber-600 dark:text-amber-400">GRANT</h3>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{grantWinners.length} winners</span>
+            </div>
           </div>
 
           {/* Duration */}
@@ -736,7 +740,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             </div>
             <div className="space-y-1.5">
               {Object.entries(grantDuration.ranges).map(([range, count]) => (
-                <ExpandableRow key={range} label={range} count={count} total={grantWinners.length} color="bg-emerald-500" />
+                <ExpandableRow key={range} label={range} count={count} total={grantWinners.length} color="bg-amber-500" />
               ))}
             </div>
           </div>
@@ -759,7 +763,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             </div>
             <div className="space-y-1.5">
               {Object.entries(grantMention.ranges).map(([range, count]) => (
-                <ExpandableRow key={range} label={range} count={count} total={grantWinners.length} color="bg-emerald-500" />
+                <ExpandableRow key={range} label={range} count={count} total={grantWinners.length} color="bg-amber-500" />
               ))}
             </div>
           </div>
@@ -774,7 +778,7 @@ export function Analytics({ winners }: AnalyticsProps) {
                   label={caps} 
                   count={count} 
                   total={grantWinners.length} 
-                  color="bg-emerald-500"
+                  color="bg-amber-500"
                   subsections={grantCapsData.subsections[caps]}
                 />
               ))}
@@ -786,7 +790,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Top Themes</h4>
             <div className="space-y-1.5">
               {grantThemes.slice(0, 8).map(([theme, count]) => (
-                <ExpandableRow key={theme} label={theme} count={count} total={grantWinners.length} color="bg-emerald-500" />
+                <ExpandableRow key={theme} label={theme} count={count} total={grantWinners.length} color="bg-amber-500" />
               ))}
             </div>
           </div>
@@ -796,7 +800,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Music Genres</h4>
             <div className="space-y-1.5">
               {grantMusic.length > 0 ? grantMusic.slice(0, 8).map(([genre, count]) => (
-                <ExpandableRow key={genre} label={genre} count={count} total={grantWinners.length} color="bg-emerald-500" />
+                <ExpandableRow key={genre} label={genre} count={count} total={grantWinners.length} color="bg-amber-500" />
               )) : (
                 <div className="text-sm text-slate-500 dark:text-slate-400">No music data</div>
               )}
@@ -808,7 +812,7 @@ export function Analytics({ winners }: AnalyticsProps) {
             <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Text Overlay Styles</h4>
             <div className="space-y-1.5">
               {grantTextOverlay.slice(0, 6).map(([overlay, count]) => (
-                <ExpandableRow key={overlay} label={overlay} count={count} total={grantWinners.length} color="bg-emerald-500" />
+                <ExpandableRow key={overlay} label={overlay} count={count} total={grantWinners.length} color="bg-amber-500" />
               ))}
             </div>
           </div>

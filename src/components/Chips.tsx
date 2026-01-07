@@ -15,13 +15,25 @@ function Chip({ children, className = '' }: ChipProps) {
   );
 }
 
-// Brand chips - KIKOFF=blue, GRANT=green (more vibrant)
+// Brand chips - KIKOFF=Kikoff green, GRANT=yellow-amber
 export function BrandChip({ brand }: { brand: string }) {
-  const styles: Record<string, string> = {
-    KIKOFF: 'bg-blue-500/15 text-blue-600 dark:bg-blue-400/20 dark:text-blue-300 ring-1 ring-blue-500/20',
-    GRANT: 'bg-emerald-500/15 text-emerald-600 dark:bg-emerald-400/20 dark:text-emerald-300 ring-1 ring-emerald-500/20',
-  };
-  return <Chip className={styles[brand] || 'bg-gray-100 text-gray-600'}>{brand}</Chip>;
+  if (brand === 'KIKOFF') {
+    return (
+      <span className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-[#00C853]/15 text-[#00913a] dark:bg-[#00C853]/25 dark:text-[#4ade80] ring-1 ring-[#00C853]/30">
+        <img src="/kikoff-logo.png" alt="" className="w-3 h-3 rounded-sm flex-shrink-0" />
+        <span>{brand}</span>
+      </span>
+    );
+  }
+  if (brand === 'GRANT') {
+    return (
+      <span className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-400/20 text-amber-700 dark:bg-amber-400/25 dark:text-amber-300 ring-1 ring-amber-500/30">
+        <img src="/grant-logo.png" alt="" className="w-3 h-3 rounded-sm flex-shrink-0" />
+        <span>{brand}</span>
+      </span>
+    );
+  }
+  return <Chip className="bg-gray-100 text-gray-600">{brand}</Chip>;
 }
 
 // Execution chips - distinct colors for each type
@@ -131,11 +143,11 @@ export function VariantChip({ variant }: { variant: string }) {
 // Month chip - seasonal colors
 export function MonthChip({ month }: { month: string }) {
   const monthStyles: Record<string, string> = {
-    September: 'bg-orange-500/15 text-orange-600 dark:bg-orange-400/20 dark:text-orange-300',
-    October: 'bg-amber-500/15 text-amber-600 dark:bg-amber-400/20 dark:text-amber-300',
-    November: 'bg-yellow-500/15 text-yellow-700 dark:bg-yellow-400/20 dark:text-yellow-300',
-    December: 'bg-sky-500/15 text-sky-600 dark:bg-sky-400/20 dark:text-sky-300',
-    January: 'bg-blue-500/15 text-blue-600 dark:bg-blue-400/20 dark:text-blue-300',
+    September: 'bg-teal-500/15 text-teal-600 dark:bg-teal-400/20 dark:text-teal-300', // End of summer - teal/warm
+    October: 'bg-yellow-500/15 text-yellow-700 dark:bg-yellow-400/20 dark:text-yellow-300', // Fall - golden yellow
+    November: 'bg-orange-600/15 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300', // Thanksgiving - deep orange/brown
+    December: 'bg-sky-500/15 text-sky-600 dark:bg-sky-400/20 dark:text-sky-300', // Winter - cool blue
+    January: 'bg-blue-500/15 text-blue-600 dark:bg-blue-400/20 dark:text-blue-300', // Winter - blue
   };
   const monthName = month.split(' ')[0];
   return <Chip className={monthStyles[monthName] || 'bg-slate-100 text-slate-600'}>{month}</Chip>;
