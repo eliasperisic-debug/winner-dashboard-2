@@ -20,6 +20,8 @@ export function Dashboard({ winners }: DashboardProps) {
   
   // Filter state for drill-down from Trends
   const [filterMonth, setFilterMonth] = useState<string | null>(null);
+  const [filterMonths, setFilterMonths] = useState<string[] | null>(null); // For quarter drill-down
+  const [filterQuarter, setFilterQuarter] = useState<string | null>(null);
   const [filterBrand, setFilterBrand] = useState<'KIKOFF' | 'GRANT' | null>(null);
 
   const handleSuccess = () => {
@@ -27,9 +29,20 @@ export function Dashboard({ winners }: DashboardProps) {
     window.location.reload();
   };
   
-  // Handle drill-down from Trends tab
+  // Handle drill-down from Trends tab (single month)
   const handleTrendsDrillDown = (month: string, brand?: 'KIKOFF' | 'GRANT') => {
     setFilterMonth(month);
+    setFilterMonths(null);
+    setFilterQuarter(null);
+    setFilterBrand(brand || null);
+    setActiveTab('winners');
+  };
+  
+  // Handle drill-down from Trends tab (quarter - multiple months)
+  const handleQuarterDrillDown = (quarter: string, months: string[], brand?: 'KIKOFF' | 'GRANT') => {
+    setFilterMonth(null);
+    setFilterMonths(months);
+    setFilterQuarter(quarter);
     setFilterBrand(brand || null);
     setActiveTab('winners');
   };
@@ -38,6 +51,8 @@ export function Dashboard({ winners }: DashboardProps) {
   const handleTabChange = (tab: TabType) => {
     if (tab !== 'winners') {
       setFilterMonth(null);
+      setFilterMonths(null);
+      setFilterQuarter(null);
       setFilterBrand(null);
     }
     setActiveTab(tab);
@@ -118,15 +133,16 @@ export function Dashboard({ winners }: DashboardProps) {
       </div>
       
       {/* Filter indicator when drilling down from Trends */}
-      {activeTab === 'winners' && (filterMonth || filterBrand) && (
+      {activeTab === 'winners' && (filterMonth || filterMonths || filterBrand) && (
         <div className="mb-4 flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <span className="text-sm text-blue-700 dark:text-blue-300">
             Filtered from Trends: 
+            {filterQuarter && <span className="font-medium"> {filterQuarter}</span>}
             {filterMonth && <span className="font-medium"> {filterMonth}</span>}
             {filterBrand && <span className="font-medium"> ({filterBrand})</span>}
           </span>
           <button
-            onClick={() => { setFilterMonth(null); setFilterBrand(null); }}
+            onClick={() => { setFilterMonth(null); setFilterMonths(null); setFilterQuarter(null); setFilterBrand(null); }}
             className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 underline"
           >
             Clear filter
@@ -140,12 +156,17 @@ export function Dashboard({ winners }: DashboardProps) {
           winners={winners} 
           key={refreshKey} 
           initialMonthFilter={filterMonth}
+          initialMonthsFilter={filterMonths}
           initialBrandFilter={filterBrand}
         />
       ) : activeTab === 'analytics' ? (
         <Analytics winners={winners} />
       ) : (
-        <Trends winners={winners} onDrillDown={handleTrendsDrillDown} />
+        <Trends 
+          winners={winners} 
+          onDrillDown={handleTrendsDrillDown} 
+          onQuarterDrillDown={handleQuarterDrillDown}
+        />
       )}
 
       {/* Add Winner Modal */}

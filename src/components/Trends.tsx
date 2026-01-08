@@ -31,6 +31,7 @@ import {
 interface TrendsProps {
   winners: Winner[];
   onDrillDown: (month: string, brand?: 'KIKOFF' | 'GRANT') => void;
+  onQuarterDrillDown?: (quarter: string, months: string[], brand?: 'KIKOFF' | 'GRANT') => void;
 }
 
 type BrandFilter = 'all' | 'KIKOFF' | 'GRANT';
@@ -109,7 +110,7 @@ function InsightIcon({ type }: { type: Insight['type'] }) {
   return <span className="text-blue-500">→</span>;
 }
 
-export function Trends({ winners, onDrillDown }: TrendsProps) {
+export function Trends({ winners, onDrillDown, onQuarterDrillDown }: TrendsProps) {
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('monthly');
   const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
@@ -203,6 +204,17 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
         // Use the passed brand if filtering by brand, otherwise use the line that was clicked
         const targetBrand = brandFilter !== 'all' ? brandFilter : brand;
         onDrillDown(fullMonth, targetBrand);
+      }
+    }
+  };
+  
+  // Handle quarterly bar click for drill-down
+  const handleQuarterClick = (data: any, brand?: 'KIKOFF' | 'GRANT') => {
+    if (data && onQuarterDrillDown) {
+      const quarterData = quarterlyData.find(q => q.quarter === data.quarter);
+      if (quarterData) {
+        const targetBrand = brandFilter !== 'all' ? brandFilter : brand;
+        onQuarterDrillDown(quarterData.quarter, quarterData.months, targetBrand);
       }
     }
   };
@@ -346,8 +358,10 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
             Winners Over Time {viewMode === 'quarterly' && '(by Quarter)'}
           </h3>
-          {viewMode === 'monthly' && (
+          {viewMode === 'monthly' ? (
             <p className="text-xs text-slate-500 dark:text-slate-400">Click any dot to view winners</p>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400">Click any bar to view winners</p>
           )}
         </div>
         <div className="h-[350px]">
@@ -428,13 +442,41 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                 <Legend />
                 {brandFilter === 'all' ? (
                   <>
-                    <Bar dataKey="kikoff" name="KIKOFF" fill={KIKOFF_COLOR} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="grant" name="GRANT" fill={GRANT_COLOR} radius={[4, 4, 0, 0]} />
+                    <Bar 
+                      dataKey="kikoff" 
+                      name="KIKOFF" 
+                      fill={KIKOFF_COLOR} 
+                      radius={[4, 4, 0, 0]} 
+                      cursor="pointer"
+                      onClick={(data) => handleQuarterClick(data, 'KIKOFF')}
+                    />
+                    <Bar 
+                      dataKey="grant" 
+                      name="GRANT" 
+                      fill={GRANT_COLOR} 
+                      radius={[4, 4, 0, 0]} 
+                      cursor="pointer"
+                      onClick={(data) => handleQuarterClick(data, 'GRANT')}
+                    />
                   </>
                 ) : brandFilter === 'KIKOFF' ? (
-                  <Bar dataKey="kikoff" name="KIKOFF" fill={KIKOFF_COLOR} radius={[4, 4, 0, 0]} />
+                  <Bar 
+                    dataKey="kikoff" 
+                    name="KIKOFF" 
+                    fill={KIKOFF_COLOR} 
+                    radius={[4, 4, 0, 0]} 
+                    cursor="pointer"
+                    onClick={(data) => handleQuarterClick(data, 'KIKOFF')}
+                  />
                 ) : (
-                  <Bar dataKey="grant" name="GRANT" fill={GRANT_COLOR} radius={[4, 4, 0, 0]} />
+                  <Bar 
+                    dataKey="grant" 
+                    name="GRANT" 
+                    fill={GRANT_COLOR} 
+                    radius={[4, 4, 0, 0]} 
+                    cursor="pointer"
+                    onClick={(data) => handleQuarterClick(data, 'GRANT')}
+                  />
                 )}
               </BarChart>
             </ResponsiveContainer>

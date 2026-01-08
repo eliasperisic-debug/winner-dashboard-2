@@ -34,6 +34,7 @@ function extractGoogleDriveId(url: string): string | null {
 interface WinnerTableProps {
   winners: Winner[];
   initialMonthFilter?: string | null;
+  initialMonthsFilter?: string[] | null; // For quarter drill-down (multiple months)
   initialBrandFilter?: 'KIKOFF' | 'GRANT' | null;
 }
 
@@ -84,10 +85,11 @@ function getAllThemeTags(winners: Winner[]): string[] {
   return [...tagSet].sort();
 }
 
-export function WinnerTable({ winners, initialMonthFilter, initialBrandFilter }: WinnerTableProps) {
+export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, initialBrandFilter }: WinnerTableProps) {
   const [search, setSearch] = useState('');
   const [brandFilter, setBrandFilter] = useState<string>(initialBrandFilter || 'all');
   const [monthFilter, setMonthFilter] = useState<string>(initialMonthFilter || 'all');
+  const [monthsFilter, setMonthsFilter] = useState<string[] | null>(initialMonthsFilter || null);
   const [executionFilter, setExecutionFilter] = useState<string>('all');
   const [themeFilter, setThemeFilter] = useState<string>('all');
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
@@ -106,13 +108,21 @@ export function WinnerTable({ winners, initialMonthFilter, initialBrandFilter }:
         winner.notes.toLowerCase().includes(search.toLowerCase());
       
       const matchesBrand = brandFilter === 'all' || winner.brand === brandFilter;
-      const matchesMonth = monthFilter === 'all' || winner.month === monthFilter;
+      
+      // Handle month filtering - single month OR multiple months (quarter)
+      let matchesMonth = true;
+      if (monthsFilter && monthsFilter.length > 0) {
+        matchesMonth = monthsFilter.includes(winner.month);
+      } else if (monthFilter !== 'all') {
+        matchesMonth = winner.month === monthFilter;
+      }
+      
       const matchesExecution = executionFilter === 'all' || winner.execution === executionFilter;
       const matchesTheme = themeFilter === 'all' || hasThemeTag(winner, themeFilter);
       
       return matchesSearch && matchesBrand && matchesMonth && matchesExecution && matchesTheme;
     });
-  }, [winners, search, brandFilter, monthFilter, executionFilter, themeFilter]);
+  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter]);
 
   // Stats
   const stats = useMemo(() => {
@@ -172,11 +182,15 @@ export function WinnerTable({ winners, initialMonthFilter, initialBrandFilter }:
             <option value="GRANT">GRANT</option>
           </select>
           <select
-            value={monthFilter}
-            onChange={(e) => setMonthFilter(e.target.value)}
+            value={monthsFilter ? 'quarter' : monthFilter}
+            onChange={(e) => {
+              setMonthsFilter(null); // Clear quarter filter when manually selecting
+              setMonthFilter(e.target.value);
+            }}
             className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all"
           >
             <option value="all">All Months</option>
+            {monthsFilter && <option value="quarter">{monthsFilter.length} months (Quarter)</option>}
             {months.map(month => (
               <option key={month} value={month}>{month}</option>
             ))}

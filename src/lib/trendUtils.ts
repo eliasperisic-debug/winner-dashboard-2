@@ -181,6 +181,7 @@ export interface QuarterlyStats {
   kikoff: number;
   grant: number;
   total: number;
+  months: string[]; // Full month names in this quarter
 }
 
 // Calculate quarterly stats by aggregating monthly data
@@ -197,11 +198,13 @@ export function calculateQuarterlyStats(monthlyStats: MonthlyStats[]): Quarterly
         kikoff: 0,
         grant: 0,
         total: 0,
+        months: [],
       };
     }
     quarterMap[month.quarter].kikoff += month.kikoff;
     quarterMap[month.quarter].grant += month.grant;
     quarterMap[month.quarter].total += month.total;
+    quarterMap[month.quarter].months.push(month.month);
   });
   
   // Sort quarters chronologically
