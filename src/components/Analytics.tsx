@@ -471,60 +471,6 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
   );
 }
 
-// Win Rate Gauge Component
-function WinRateGauge({ winRate, winners, totalAds, colorHex, size = 'large' }: { 
-  winRate: number; 
-  winners: number; 
-  totalAds: number; 
-  colorHex: string;
-  size?: 'large' | 'small';
-}) {
-  const radius = size === 'large' ? 60 : 40;
-  const strokeWidth = size === 'large' ? 12 : 8;
-  const circumference = 2 * Math.PI * radius;
-  const progress = (winRate / 100) * circumference;
-  const viewBox = size === 'large' ? 150 : 100;
-  const center = viewBox / 2;
-  
-  return (
-    <div className="flex flex-col items-center">
-      <svg width={viewBox} height={viewBox} className="transform -rotate-90">
-        {/* Background circle */}
-        <circle
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          className="text-slate-200 dark:text-slate-700"
-        />
-        {/* Progress circle */}
-        <circle
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          stroke={colorHex}
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={circumference - progress}
-          strokeLinecap="round"
-          className="transition-all duration-500"
-        />
-      </svg>
-      <div className="absolute flex flex-col items-center justify-center" style={{ width: viewBox, height: viewBox }}>
-        <span className={`font-bold ${size === 'large' ? 'text-3xl' : 'text-xl'}`} style={{ color: colorHex }}>
-          {winRate.toFixed(1)}%
-        </span>
-        <span className={`text-slate-500 dark:text-slate-400 ${size === 'large' ? 'text-xs' : 'text-[10px]'}`}>
-          {winners}/{totalAds}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 // Single brand detailed view with expandable rows showing winners
 function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, timeFilter }: { 
   winners: Winner[]; 
@@ -726,121 +672,126 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
         </div>
       </div>
       
-      {/* Win Rate Section */}
-      <div className="mb-6 bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700/40 dark:to-slate-700/20 rounded-xl p-5 border border-slate-200 dark:border-slate-600">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            Win Rate
-          </h3>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400">Filter by month:</span>
-            <select
-              value={winRateMonthFilter}
-              onChange={(e) => setWinRateMonthFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
-            >
-              <option value="all">All Months</option>
-              {availableMonths.map(month => (
-                <option key={month} value={month}>{month}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Main Win Rate Gauge */}
-          <div className="flex items-center justify-center">
-            <div className="relative">
-              <WinRateGauge 
-                winRate={winRateData.overallWinRate}
-                winners={winRateData.totalWinners}
-                totalAds={winRateData.totalAds}
-                colorHex={colorHex}
-                size="large"
-              />
+      {/* Win Rate Section - Hero Stats + Monthly Bar Chart */}
+      <div className="mb-6 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-800 dark:to-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3">
+          {/* Hero Stat - Left Side */}
+          <div className="p-6 flex flex-col justify-center" style={{ borderRight: '1px solid', borderColor: 'rgba(148,163,184,0.2)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Win Rate</span>
             </div>
-            <div className="ml-6">
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
-                {winRateMonthFilter === 'all' ? 'Overall' : winRateMonthFilter}
-              </p>
-              <p className="text-3xl font-bold" style={{ color: colorHex }}>
-                {winRateData.overallWinRate.toFixed(1)}%
-              </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {winRateData.totalWinners} winners / {winRateData.totalAds} ads
-              </p>
-              {winRateData.totalAds === 0 && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                  No ad data available for this period
-                </p>
-              )}
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-bold tracking-tight" style={{ color: colorHex }}>
+                {winRateData.overallWinRate.toFixed(1)}
+              </span>
+              <span className="text-2xl font-semibold text-slate-400">%</span>
             </div>
-          </div>
-          
-          {/* Monthly Breakdown */}
-          {winRateMonthFilter === 'all' && winRateData.monthlyData.length > 1 && (
-            <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Monthly Breakdown</p>
-              <div className="space-y-2">
-                {winRateData.monthlyData.map(({ month, winners: w, ads, winRate }) => (
-                  <div key={month} className="flex items-center gap-3">
-                    <span className="text-xs text-slate-600 dark:text-slate-400 w-24 truncate">{month.split(' ')[0]}</span>
-                    <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full rounded-full transition-all" 
-                        style={{ width: `${Math.min(winRate * 2, 100)}%`, backgroundColor: colorHex }}
-                      />
-                    </div>
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300 w-12 text-right">
-                      {winRate.toFixed(1)}%
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 w-16 text-right">
-                      {w}/{ads}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Single month selected - show comparison */}
-          {winRateMonthFilter !== 'all' && (
-            <div className="flex flex-col justify-center">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Compare to Other Months</p>
-              <div className="space-y-2">
-                {winRateData.monthlyData.length === 0 ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">No data for selected month</p>
-                ) : null}
-                {availableMonths.filter(m => m !== winRateMonthFilter).slice(0, 3).map(month => {
-                  const monthWinners = winners.filter(w => w.month === month).length;
-                  const adEntry = adTotals.find(a => a.month === month);
-                  const monthAds = adEntry ? (brand === 'KIKOFF' ? adEntry.kikoffAds : adEntry.grantAds) : 0;
-                  const rate = monthAds > 0 ? (monthWinners / monthAds) * 100 : 0;
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+              <span className="font-semibold text-slate-700 dark:text-slate-300">{winRateData.totalWinners}</span> winners from <span className="font-semibold text-slate-700 dark:text-slate-300">{winRateData.totalAds}</span> ads
+            </p>
+            {winRateData.totalAds === 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                No ad data available for this period
+              </p>
+            )}
+            {/* Trend indicator - compare to previous period if available */}
+            {winRateData.monthlyData.length >= 2 && winRateMonthFilter === 'all' && (
+              <div className="mt-3 flex items-center gap-1.5">
+                {(() => {
+                  const latest = winRateData.monthlyData[winRateData.monthlyData.length - 1];
+                  const previous = winRateData.monthlyData[winRateData.monthlyData.length - 2];
+                  const diff = latest.winRate - previous.winRate;
+                  const isUp = diff > 0;
                   return (
-                    <button
-                      key={month}
-                      onClick={() => setWinRateMonthFilter(month)}
-                      className="flex items-center gap-3 w-full hover:bg-slate-200/50 dark:hover:bg-slate-600/50 rounded-lg p-1 -mx-1 transition-colors"
-                    >
-                      <span className="text-xs text-slate-600 dark:text-slate-400 w-24 truncate text-left">{month.split(' ')[0]}</span>
-                      <div className="flex-1 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full rounded-full transition-all opacity-60" 
-                          style={{ width: `${Math.min(rate * 2, 100)}%`, backgroundColor: colorHex }}
-                        />
-                      </div>
-                      <span className="text-xs text-slate-500 dark:text-slate-400 w-12 text-right">
-                        {rate.toFixed(1)}%
+                    <>
+                      <span className={`text-xs font-medium ${isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {isUp ? '+' : ''}{diff.toFixed(1)}%
                       </span>
-                    </button>
+                      <span className="text-xs text-slate-400">vs {previous.month.split(' ')[0]}</span>
+                      {isUp ? (
+                        <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3 text-rose-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </div>
+            )}
+          </div>
+          
+          {/* Monthly Bar Chart - Right Side */}
+          <div className="col-span-2 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Monthly Performance</span>
+              <select
+                value={winRateMonthFilter}
+                onChange={(e) => setWinRateMonthFilter(e.target.value)}
+                className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-white text-xs"
+              >
+                <option value="all">All Months</option>
+                {availableMonths.map(month => (
+                  <option key={month} value={month}>{month}</option>
+                ))}
+              </select>
             </div>
-          )}
+            
+            {winRateData.monthlyData.length > 0 ? (
+              <div className="space-y-3">
+                {/* Find max win rate for scaling */}
+                {(() => {
+                  const maxRate = Math.max(...winRateData.monthlyData.map(d => d.winRate), 15);
+                  return winRateData.monthlyData.map(({ month, winners: w, ads, winRate }) => {
+                    const isSelected = winRateMonthFilter === month;
+                    const barWidth = (winRate / maxRate) * 100;
+                    return (
+                      <button
+                        key={month}
+                        onClick={() => setWinRateMonthFilter(isSelected ? 'all' : month)}
+                        className={`w-full group transition-all ${isSelected ? 'scale-[1.02]' : 'hover:scale-[1.01]'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`text-sm w-20 text-left font-medium ${isSelected ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'}`}>
+                            {month.split(' ')[0].slice(0, 3)}
+                          </span>
+                          <div className="flex-1 h-8 bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden relative">
+                            <div 
+                              className={`h-full rounded-lg transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}
+                              style={{ 
+                                width: `${barWidth}%`, 
+                                backgroundColor: colorHex,
+                              }}
+                            />
+                            <div className="absolute inset-0 flex items-center px-3">
+                              <span className={`text-sm font-bold ${barWidth > 30 ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`} style={{ marginLeft: barWidth > 30 ? '0' : `${barWidth + 2}%` }}>
+                                {winRate.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="w-20 text-right">
+                            <span className={`text-xs ${isSelected ? 'text-slate-700 dark:text-slate-300 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
+                              {w}/{ads} ads
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-32 text-slate-400 dark:text-slate-500">
+                <p>No win rate data available</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       
@@ -1134,68 +1085,55 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
         <StatCard label="Avg Duration" value={`${analyzeDuration(allWinners).avg}s`} color="slate" />
       </div>
 
-      {/* Win Rate Comparison */}
+      {/* Win Rate Comparison - Hero Stats */}
       {(winRates.kikoffAds > 0 || winRates.grantAds > 0) && (
-        <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-700/40 dark:to-slate-700/20 rounded-xl p-5 border border-slate-200 dark:border-slate-600">
-          <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            Win Rate Comparison
-          </h3>
-          <div className="grid grid-cols-3 gap-6">
+        <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-800 dark:to-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+          <div className="grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">
             {/* KIKOFF Win Rate */}
-            <div className="text-center">
-              <div className="relative inline-flex items-center justify-center">
-                <svg className="w-24 h-24 transform -rotate-90">
-                  <circle cx="48" cy="48" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-200 dark:text-slate-700" />
-                  <circle 
-                    cx="48" cy="48" r="40" fill="none" stroke="#00C853" strokeWidth="8" 
-                    strokeDasharray={2 * Math.PI * 40}
-                    strokeDashoffset={2 * Math.PI * 40 * (1 - winRates.kikoff / 100)}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute text-xl font-bold text-[#00C853]">{winRates.kikoff.toFixed(1)}%</span>
+            <div className="p-5 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-2">
+                <img src="/kikoff-logo.png" alt="" className="w-5 h-5 rounded" />
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">KIKOFF</span>
               </div>
-              <p className="text-sm font-semibold text-[#00913a] dark:text-[#4ade80] mt-2">KIKOFF</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{winRates.kikoffWins} / {winRates.kikoffAds} ads</p>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-4xl font-bold text-[#00C853]">{winRates.kikoff.toFixed(1)}</span>
+                <span className="text-lg font-semibold text-slate-400">%</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <span className="font-medium text-slate-600 dark:text-slate-300">{winRates.kikoffWins}</span> wins / <span className="font-medium text-slate-600 dark:text-slate-300">{winRates.kikoffAds}</span> ads
+              </p>
             </div>
             
-            {/* Overall Win Rate */}
-            <div className="text-center">
-              <div className="relative inline-flex items-center justify-center">
-                <svg className="w-24 h-24 transform -rotate-90">
-                  <circle cx="48" cy="48" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-200 dark:text-slate-700" />
-                  <circle 
-                    cx="48" cy="48" r="40" fill="none" stroke="#6366f1" strokeWidth="8" 
-                    strokeDasharray={2 * Math.PI * 40}
-                    strokeDashoffset={2 * Math.PI * 40 * (1 - winRates.overall / 100)}
-                    strokeLinecap="round"
-                  />
+            {/* Overall Win Rate - Featured */}
+            <div className="p-5 text-center bg-gradient-to-b from-indigo-50/50 to-transparent dark:from-indigo-900/20 dark:to-transparent">
+              <div className="flex items-center justify-center gap-1.5 mb-2">
+                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                 </svg>
-                <span className="absolute text-xl font-bold text-indigo-500">{winRates.overall.toFixed(1)}%</span>
+                <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Overall</span>
               </div>
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mt-2">OVERALL</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{winRates.kikoffWins + winRates.grantWins} / {winRates.kikoffAds + winRates.grantAds} ads</p>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-5xl font-bold text-indigo-500">{winRates.overall.toFixed(1)}</span>
+                <span className="text-xl font-semibold text-slate-400">%</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <span className="font-medium text-slate-600 dark:text-slate-300">{winRates.kikoffWins + winRates.grantWins}</span> wins / <span className="font-medium text-slate-600 dark:text-slate-300">{winRates.kikoffAds + winRates.grantAds}</span> ads
+              </p>
             </div>
             
             {/* GRANT Win Rate */}
-            <div className="text-center">
-              <div className="relative inline-flex items-center justify-center">
-                <svg className="w-24 h-24 transform -rotate-90">
-                  <circle cx="48" cy="48" r="40" fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-200 dark:text-slate-700" />
-                  <circle 
-                    cx="48" cy="48" r="40" fill="none" stroke="#f59e0b" strokeWidth="8" 
-                    strokeDasharray={2 * Math.PI * 40}
-                    strokeDashoffset={2 * Math.PI * 40 * (1 - winRates.grant / 100)}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <span className="absolute text-xl font-bold text-amber-500">{winRates.grant.toFixed(1)}%</span>
+            <div className="p-5 text-center">
+              <div className="flex items-center justify-center gap-1.5 mb-2">
+                <img src="/grant-logo.png" alt="" className="w-5 h-5 rounded" />
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">GRANT</span>
               </div>
-              <p className="text-sm font-semibold text-amber-600 dark:text-amber-400 mt-2">GRANT</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{winRates.grantWins} / {winRates.grantAds} ads</p>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-4xl font-bold text-amber-500">{winRates.grant.toFixed(1)}</span>
+                <span className="text-lg font-semibold text-slate-400">%</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <span className="font-medium text-slate-600 dark:text-slate-300">{winRates.grantWins}</span> wins / <span className="font-medium text-slate-600 dark:text-slate-300">{winRates.grantAds}</span> ads
+              </p>
             </div>
           </div>
         </div>
