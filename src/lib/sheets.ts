@@ -46,3 +46,29 @@ export async function getWinners(): Promise<Winner[]> {
     videoUrl: row[15] || '',
   }));
 }
+
+// Monthly ad totals for win rate calculations
+export interface MonthlyAdTotals {
+  month: string;
+  kikoffAds: number;
+  grantAds: number;
+  totalAds: number;
+}
+
+export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.GOOGLE_SHEETS_ID,
+    range: 'Win Rate Data!A2:D5', // Skip header, get 4 months of data
+  });
+
+  const rows = response.data.values || [];
+  
+  return rows
+    .filter(row => row[0] && row[0] !== 'MONTH' && !row[0].includes('Grand'))
+    .map((row): MonthlyAdTotals => ({
+      month: row[0] || '',
+      kikoffAds: parseInt(row[1]) || 0,
+      grantAds: parseInt(row[2]) || 0,
+      totalAds: parseInt(row[3]) || 0,
+    }));
+}

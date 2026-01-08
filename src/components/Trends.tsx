@@ -27,9 +27,11 @@ import {
   QuarterlyStats,
   Insight,
 } from '@/lib/trendUtils';
+import { MonthlyAdTotals } from '@/lib/sheets';
 
 interface TrendsProps {
   winners: Winner[];
+  adTotals: MonthlyAdTotals[];
   onDrillDown: (month: string, brand?: 'KIKOFF' | 'GRANT') => void;
   onQuarterDrillDown?: (quarter: string, months: string[], brand?: 'KIKOFF' | 'GRANT') => void;
 }
@@ -110,7 +112,7 @@ function InsightIcon({ type }: { type: Insight['type'] }) {
   return <span className="text-blue-500">→</span>;
 }
 
-export function Trends({ winners, onDrillDown, onQuarterDrillDown }: TrendsProps) {
+export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: TrendsProps) {
   const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('monthly');
   const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
@@ -176,6 +178,77 @@ export function Trends({ winners, onDrillDown, onQuarterDrillDown }: TrendsProps
       return themeDataPoint;
     });
   }, [chartData, activeThemes, brandFilter]);
+  
+  // Prepare win rate data by matching monthly stats with ad totals
+  const winRateData = useMemo(() => {
+    // Map month names from adTotals to match monthlyStats format
+    const monthMap: Record<string, MonthlyAdTotals> = {};
+    adTotals.forEach(at => {
+      monthMap[at.month] = at;
+    });
+    
+    return chartData.map(d => {
+      const adTotal = monthMap[d.month];
+      if (!adTotal || adTotal.totalAds === 0) {
+        return {
+          name: d.name,
+          shortMonth: d.shortMonth,
+          month: d.month,
+          winRateKikoff: 0,
+          winRateGrant: 0,
+          winRateTotal: 0,
+          winnersKikoff: d.kikoff,
+          winnersGrant: d.grant,
+          winnersTotal: d.total,
+          adsKikoff: 0,
+          adsGrant: 0,
+          adsTotal: 0,
+        };
+      }
+      
+      const winRateKikoff = adTotal.kikoffAds > 0 ? (d.kikoff / adTotal.kikoffAds) * 100 : 0;
+      const winRateGrant = adTotal.grantAds > 0 ? (d.grant / adTotal.grantAds) * 100 : 0;
+      const winRateTotal = adTotal.totalAds > 0 ? (d.total / adTotal.totalAds) * 100 : 0;
+      
+      return {
+        name: d.name,
+        shortMonth: d.shortMonth,
+        month: d.month,
+        winRateKikoff: Math.round(winRateKikoff * 10) / 10,
+        winRateGrant: Math.round(winRateGrant * 10) / 10,
+        winRateTotal: Math.round(winRateTotal * 10) / 10,
+        winnersKikoff: d.kikoff,
+        winnersGrant: d.grant,
+        winnersTotal: d.total,
+        adsKikoff: adTotal.kikoffAds,
+        adsGrant: adTotal.grantAds,
+        adsTotal: adTotal.totalAds,
+      };
+    }).filter(d => d.adsTotal > 0); // Only show months with ad data
+  }, [chartData, adTotals]);
+  
+  // Calculate overall win rates
+  const overallWinRates = useMemo(() => {
+    const totalWinners = { kikoff: 0, grant: 0, total: 0 };
+    const totalAds = { kikoff: 0, grant: 0, total: 0 };
+    
+    winRateData.forEach(d => {
+      totalWinners.kikoff += d.winnersKikoff;
+      totalWinners.grant += d.winnersGrant;
+      totalWinners.total += d.winnersTotal;
+      totalAds.kikoff += d.adsKikoff;
+      totalAds.grant += d.adsGrant;
+      totalAds.total += d.adsTotal;
+    });
+    
+    return {
+      kikoff: totalAds.kikoff > 0 ? (totalWinners.kikoff / totalAds.kikoff) * 100 : 0,
+      grant: totalAds.grant > 0 ? (totalWinners.grant / totalAds.grant) * 100 : 0,
+      total: totalAds.total > 0 ? (totalWinners.total / totalAds.total) * 100 : 0,
+      totalWinners,
+      totalAds,
+    };
+  }, [winRateData]);
   
   // Calculate Y-axis domains
   const winnersDomain: [number, number] = useMemo(() => {
@@ -483,6 +556,119 @@ export function Trends({ winners, onDrillDown, onQuarterDrillDown }: TrendsProps
           )}
         </div>
       </div>
+      
+      {/* Win Rate Section */}
+      {winRateData.length > 0 && (
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-100 flex items-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Win Rate Analysis
+              </h3>
+              <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                Winners / Total Ads = Win Rate %
+              </p>
+            </div>
+          </div>
+          
+          {/* Overall Win Rate Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <img src="/kikoff-logo.png" alt="" className="w-5 h-5 rounded" />
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">KIKOFF</span>
+              </div>
+              <div className="text-2xl font-bold text-[#00C853]">
+                {overallWinRates.kikoff.toFixed(1)}%
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {overallWinRates.totalWinners.kikoff} wins / {overallWinRates.totalAds.kikoff} ads
+              </div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <img src="/grant-logo.png" alt="" className="w-5 h-5 rounded" />
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">GRANT</span>
+              </div>
+              <div className="text-2xl font-bold text-amber-500">
+                {overallWinRates.grant.toFixed(1)}%
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {overallWinRates.totalWinners.grant} wins / {overallWinRates.totalAds.grant} ads
+              </div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">OVERALL</span>
+              </div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">
+                {overallWinRates.total.toFixed(1)}%
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {overallWinRates.totalWinners.total} wins / {overallWinRates.totalAds.total} ads
+              </div>
+            </div>
+          </div>
+          
+          {/* Win Rate Trend Chart */}
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
+            <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Win Rate Over Time</h4>
+            <div className="h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={winRateData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tickLine={{ stroke: '#cbd5e1' }}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tickLine={{ stroke: '#cbd5e1' }}
+                    tickFormatter={(value) => `${value}%`}
+                    domain={[0, 'auto']}
+                  />
+                  <Tooltip 
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const data = payload[0]?.payload;
+                      return (
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-3">
+                          <p className="font-medium text-slate-900 dark:text-white mb-2">{data?.month}</p>
+                          <div className="space-y-1 text-sm">
+                            <p className="text-[#00C853]">
+                              KIKOFF: <span className="font-semibold">{data?.winRateKikoff}%</span>
+                              <span className="text-slate-400 ml-1">({data?.winnersKikoff}/{data?.adsKikoff})</span>
+                            </p>
+                            <p className="text-amber-500">
+                              GRANT: <span className="font-semibold">{data?.winRateGrant}%</span>
+                              <span className="text-slate-400 ml-1">({data?.winnersGrant}/{data?.adsGrant})</span>
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend />
+                  {brandFilter === 'all' ? (
+                    <>
+                      <Bar dataKey="winRateKikoff" name="KIKOFF %" fill={KIKOFF_COLOR} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="winRateGrant" name="GRANT %" fill={GRANT_COLOR} radius={[4, 4, 0, 0]} />
+                    </>
+                  ) : brandFilter === 'KIKOFF' ? (
+                    <Bar dataKey="winRateKikoff" name="KIKOFF %" fill={KIKOFF_COLOR} radius={[4, 4, 0, 0]} />
+                  ) : (
+                    <Bar dataKey="winRateGrant" name="GRANT %" fill={GRANT_COLOR} radius={[4, 4, 0, 0]} />
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Two Column Grid for Other Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

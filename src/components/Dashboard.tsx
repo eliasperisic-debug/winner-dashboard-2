@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Winner } from '@/types/winner';
+import { MonthlyAdTotals } from '@/lib/sheets';
 import { WinnerTable } from './WinnerTable';
 import { AddWinnerForm } from './AddWinnerForm';
 import { Analytics } from './Analytics';
@@ -9,11 +10,12 @@ import { Trends } from './Trends';
 
 interface DashboardProps {
   winners: Winner[];
+  adTotals: MonthlyAdTotals[];
 }
 
 type TabType = 'winners' | 'analytics' | 'trends';
 
-export function Dashboard({ winners }: DashboardProps) {
+export function Dashboard({ winners, adTotals }: DashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>('winners');
   const [showAddForm, setShowAddForm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -160,10 +162,11 @@ export function Dashboard({ winners }: DashboardProps) {
           initialBrandFilter={filterBrand}
         />
       ) : activeTab === 'analytics' ? (
-        <Analytics winners={winners} />
+        <Analytics winners={winners} adTotals={adTotals} />
       ) : (
         <Trends 
           winners={winners} 
+          adTotals={adTotals}
           onDrillDown={handleTrendsDrillDown} 
           onQuarterDrillDown={handleQuarterDrillDown}
         />

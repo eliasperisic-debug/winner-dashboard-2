@@ -2,9 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import { Winner } from '@/types/winner';
+import { MonthlyAdTotals } from '@/lib/sheets';
 
 interface AnalyticsProps {
   winners: Winner[];
+  adTotals: MonthlyAdTotals[];
 }
 
 type BrandView = 'all' | 'KIKOFF' | 'GRANT';
@@ -1087,7 +1089,7 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners }: { kikoffWin
   );
 }
 
-export function Analytics({ winners }: AnalyticsProps) {
+export function Analytics({ winners, adTotals }: AnalyticsProps) {
   const [brandView, setBrandView] = useState<BrandView>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [themeFilter, setThemeFilter] = useState<string>('all');

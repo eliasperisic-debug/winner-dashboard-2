@@ -1,4 +1,4 @@
-import { getWinners } from '@/lib/sheets';
+import { getWinners, getMonthlyAdTotals, MonthlyAdTotals } from '@/lib/sheets';
 import { Dashboard } from '@/components/Dashboard';
 import { PasswordGate } from '@/components/PasswordGate';
 
@@ -6,13 +6,17 @@ export const revalidate = 30; // Revalidate every 30 seconds for faster updates
 
 export default async function Home() {
   let winners: Awaited<ReturnType<typeof getWinners>> = [];
+  let adTotals: MonthlyAdTotals[] = [];
   let error: string | null = null;
 
   try {
-    winners = await getWinners();
+    [winners, adTotals] = await Promise.all([
+      getWinners(),
+      getMonthlyAdTotals(),
+    ]);
   } catch (e) {
     error = e instanceof Error ? e.message : 'Failed to fetch data';
-    console.error('Error fetching winners:', e);
+    console.error('Error fetching data:', e);
   }
 
   return (
@@ -57,7 +61,7 @@ export default async function Home() {
               </p>
             </div>
           ) : (
-            <Dashboard winners={winners} />
+            <Dashboard winners={winners} adTotals={adTotals} />
           )}
         </main>
 
