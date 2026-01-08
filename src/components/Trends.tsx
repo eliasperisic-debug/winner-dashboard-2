@@ -7,21 +7,24 @@ import {
   Line,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
-  ReferenceArea,
 } from 'recharts';
 import {
   calculateMonthlyStats,
+  calculateQuarterlyStats,
   getTopThemes,
   getAllThemes,
   getAllExecutions,
   generateInsights,
   MonthlyStats,
+  QuarterlyStats,
   Insight,
 } from '@/lib/trendUtils';
 
@@ -70,9 +73,8 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
-// Quarter shading component
-function QuarterShading({ data, yAxisDomain }: { data: MonthlyStats[]; yAxisDomain: [number, number] }) {
-  // Group consecutive months by quarter
+// Get quarter boundaries for visual grouping
+function getQuarterBoundaries(data: MonthlyStats[]): { quarter: string; startIdx: number; endIdx: number }[] {
   const quarters: { quarter: string; startIdx: number; endIdx: number }[] = [];
   let currentQuarter = '';
   let startIdx = 0;
@@ -90,23 +92,7 @@ function QuarterShading({ data, yAxisDomain }: { data: MonthlyStats[]; yAxisDoma
     quarters.push({ quarter: currentQuarter, startIdx, endIdx: data.length - 1 });
   }
   
-  return (
-    <>
-      {quarters.map((q, i) => (
-        i % 2 === 1 ? (
-          <ReferenceArea
-            key={q.quarter}
-            x1={data[q.startIdx]?.shortMonth}
-            x2={data[q.endIdx]?.shortMonth}
-            y1={yAxisDomain[0]}
-            y2={yAxisDomain[1]}
-            fill="#94a3b8"
-            fillOpacity={0.1}
-          />
-        ) : null
-      ))}
-    </>
-  );
+  return quarters;
 }
 
 // Insight icon component
@@ -149,6 +135,11 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
       ...stats,
       name: stats.shortMonth,
     }));
+  }, [monthlyStats]);
+  
+  // Prepare quarterly chart data
+  const quarterlyData = useMemo(() => {
+    return calculateQuarterlyStats(monthlyStats);
   }, [monthlyStats]);
   
   // Prepare execution trend data
@@ -203,14 +194,15 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
     return [Math.floor(Math.min(...values) * 0.8), Math.ceil(Math.max(...values) * 1.1)];
   }, [chartData]);
   
-  // Handle chart click for drill-down
-  const handleChartClick = (data: any) => {
-    if (data && data.activePayload && data.activePayload[0]) {
-      const monthData = data.activePayload[0].payload;
-      // Find the full month name from shortMonth
-      const fullMonth = monthlyStats.find(m => m.shortMonth === monthData.shortMonth)?.month;
+  // Handle chart click for drill-down - called when clicking on a data point
+  const handlePointClick = (data: any, brand?: 'KIKOFF' | 'GRANT') => {
+    if (data && data.payload) {
+      const monthData = data.payload;
+      const fullMonth = monthlyStats.find(m => m.shortMonth === monthData.shortMonth || m.shortMonth === monthData.name)?.month;
       if (fullMonth) {
-        onDrillDown(fullMonth, brandFilter === 'all' ? undefined : brandFilter);
+        // Use the passed brand if filtering by brand, otherwise use the line that was clicked
+        const targetBrand = brandFilter !== 'all' ? brandFilter : brand;
+        onDrillDown(fullMonth, targetBrand);
       }
     }
   };
@@ -257,7 +249,7 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
               setSelectedThemes([]);
               setShowThemeCustomizer(false);
             }}
-            className="flex-1 px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+            className="flex-1 px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
           >
             Reset to Top 5
           </button>
@@ -351,70 +343,102 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
       {/* Winners Over Time - Hero Chart */}
       <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Winners Over Time</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Click any point to view winners</p>
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+            Winners Over Time {viewMode === 'quarterly' && '(by Quarter)'}
+          </h3>
+          {viewMode === 'monthly' && (
+            <p className="text-xs text-slate-500 dark:text-slate-400">Click any dot to view winners</p>
+          )}
         </div>
         <div className="h-[350px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} onClick={handleChartClick} style={{ cursor: 'pointer' }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              {viewMode === 'quarterly' && <QuarterShading data={chartData} yAxisDomain={winnersDomain} />}
-              <XAxis 
-                dataKey="shortMonth" 
-                tick={{ fontSize: 12, fill: '#64748b' }}
-                tickLine={{ stroke: '#cbd5e1' }}
-              />
-              <YAxis 
-                domain={winnersDomain}
-                tick={{ fontSize: 12, fill: '#64748b' }}
-                tickLine={{ stroke: '#cbd5e1' }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              {brandFilter === 'all' ? (
-                <>
+          {viewMode === 'monthly' ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis 
+                  dataKey="shortMonth" 
+                  tick={{ fontSize: 12, fill: '#64748b' }}
+                  tickLine={{ stroke: '#cbd5e1' }}
+                />
+                <YAxis 
+                  domain={winnersDomain}
+                  tick={{ fontSize: 12, fill: '#64748b' }}
+                  tickLine={{ stroke: '#cbd5e1' }}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                {brandFilter === 'all' ? (
+                  <>
+                    <Line
+                      type="monotone"
+                      dataKey="kikoff"
+                      name="KIKOFF"
+                      stroke={KIKOFF_COLOR}
+                      strokeWidth={2}
+                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 4, cursor: 'pointer' }}
+                      activeDot={{ r: 8, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="grant"
+                      name="GRANT"
+                      stroke={GRANT_COLOR}
+                      strokeWidth={2}
+                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 4, cursor: 'pointer' }}
+                      activeDot={{ r: 8, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
+                    />
+                  </>
+                ) : brandFilter === 'KIKOFF' ? (
                   <Line
                     type="monotone"
                     dataKey="kikoff"
                     name="KIKOFF"
                     stroke={KIKOFF_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, fill: KIKOFF_COLOR }}
+                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 4, cursor: 'pointer' }}
+                    activeDot={{ r: 8, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
                   />
+                ) : (
                   <Line
                     type="monotone"
                     dataKey="grant"
                     name="GRANT"
                     stroke={GRANT_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, fill: GRANT_COLOR }}
+                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 4, cursor: 'pointer' }}
+                    activeDot={{ r: 8, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
                   />
-                </>
-              ) : brandFilter === 'KIKOFF' ? (
-                <Line
-                  type="monotone"
-                  dataKey="kikoff"
-                  name="KIKOFF"
-                  stroke={KIKOFF_COLOR}
-                  strokeWidth={2}
-                  dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 4 }}
-                  activeDot={{ r: 6, fill: KIKOFF_COLOR }}
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={quarterlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis 
+                  dataKey="quarter" 
+                  tick={{ fontSize: 12, fill: '#64748b' }}
+                  tickLine={{ stroke: '#cbd5e1' }}
                 />
-              ) : (
-                <Line
-                  type="monotone"
-                  dataKey="grant"
-                  name="GRANT"
-                  stroke={GRANT_COLOR}
-                  strokeWidth={2}
-                  dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 4 }}
-                  activeDot={{ r: 6, fill: GRANT_COLOR }}
+                <YAxis 
+                  tick={{ fontSize: 12, fill: '#64748b' }}
+                  tickLine={{ stroke: '#cbd5e1' }}
                 />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend />
+                {brandFilter === 'all' ? (
+                  <>
+                    <Bar dataKey="kikoff" name="KIKOFF" fill={KIKOFF_COLOR} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="grant" name="GRANT" fill={GRANT_COLOR} radius={[4, 4, 0, 0]} />
+                  </>
+                ) : brandFilter === 'KIKOFF' ? (
+                  <Bar dataKey="kikoff" name="KIKOFF" fill={KIKOFF_COLOR} radius={[4, 4, 0, 0]} />
+                ) : (
+                  <Bar dataKey="grant" name="GRANT" fill={GRANT_COLOR} radius={[4, 4, 0, 0]} />
+                )}
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
       
@@ -425,7 +449,7 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Execution Type Trends</h3>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={executionData} onClick={handleChartClick} style={{ cursor: 'pointer' }}>
+              <AreaChart data={executionData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis 
                   dataKey="name" 
@@ -460,9 +484,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Average Duration Trends</h3>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} onClick={handleChartClick} style={{ cursor: 'pointer' }}>
+              <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                {viewMode === 'quarterly' && <QuarterShading data={chartData} yAxisDomain={durationDomain} />}
                 <XAxis 
                   dataKey="shortMonth" 
                   tick={{ fontSize: 11, fill: '#64748b' }}
@@ -484,8 +507,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                       name="KIKOFF"
                       stroke={KIKOFF_COLOR}
                       strokeWidth={2}
-                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3 }}
-                      activeDot={{ r: 5, fill: KIKOFF_COLOR }}
+                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
+                      activeDot={{ r: 6, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
                       connectNulls
                     />
                     <Line
@@ -494,8 +517,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                       name="GRANT"
                       stroke={GRANT_COLOR}
                       strokeWidth={2}
-                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3 }}
-                      activeDot={{ r: 5, fill: GRANT_COLOR }}
+                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
+                      activeDot={{ r: 6, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
                       connectNulls
                     />
                   </>
@@ -506,8 +529,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                     name="KIKOFF"
                     stroke={KIKOFF_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3 }}
-                    activeDot={{ r: 5, fill: KIKOFF_COLOR }}
+                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
+                    activeDot={{ r: 6, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
                     connectNulls
                   />
                 ) : (
@@ -517,8 +540,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                     name="GRANT"
                     stroke={GRANT_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3 }}
-                    activeDot={{ r: 5, fill: GRANT_COLOR }}
+                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
+                    activeDot={{ r: 6, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
                     connectNulls
                   />
                 )}
@@ -542,7 +565,7 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={themeData} onClick={handleChartClick} style={{ cursor: 'pointer' }}>
+              <LineChart data={themeData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis 
                   dataKey="name" 
@@ -571,6 +594,11 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          {selectedThemes.length === 0 && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
+              Showing default top 5 themes · <button onClick={() => setShowThemeCustomizer(true)} className="text-blue-600 dark:text-blue-400 hover:underline">Click to customize</button>
+            </p>
+          )}
         </div>
         
         {/* Mention Timing Trends */}
@@ -578,9 +606,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">First Mention Timing Trends</h3>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} onClick={handleChartClick} style={{ cursor: 'pointer' }}>
+              <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                {viewMode === 'quarterly' && <QuarterShading data={chartData} yAxisDomain={mentionDomain} />}
                 <XAxis 
                   dataKey="shortMonth" 
                   tick={{ fontSize: 11, fill: '#64748b' }}
@@ -602,8 +629,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                       name="KIKOFF"
                       stroke={KIKOFF_COLOR}
                       strokeWidth={2}
-                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3 }}
-                      activeDot={{ r: 5, fill: KIKOFF_COLOR }}
+                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
+                      activeDot={{ r: 6, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
                       connectNulls
                     />
                     <Line
@@ -612,8 +639,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                       name="GRANT"
                       stroke={GRANT_COLOR}
                       strokeWidth={2}
-                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3 }}
-                      activeDot={{ r: 5, fill: GRANT_COLOR }}
+                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
+                      activeDot={{ r: 6, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
                       connectNulls
                     />
                   </>
@@ -624,8 +651,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                     name="KIKOFF"
                     stroke={KIKOFF_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3 }}
-                    activeDot={{ r: 5, fill: KIKOFF_COLOR }}
+                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
+                    activeDot={{ r: 6, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
                     connectNulls
                   />
                 ) : (
@@ -635,8 +662,8 @@ export function Trends({ winners, onDrillDown }: TrendsProps) {
                     name="GRANT"
                     stroke={GRANT_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3 }}
-                    activeDot={{ r: 5, fill: GRANT_COLOR }}
+                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
+                    activeDot={{ r: 6, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
                     connectNulls
                   />
                 )}

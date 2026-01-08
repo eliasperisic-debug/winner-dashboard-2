@@ -175,6 +175,46 @@ export function calculateMonthlyStats(winners: Winner[]): MonthlyStats[] {
   });
 }
 
+// Quarterly stats interface
+export interface QuarterlyStats {
+  quarter: string;
+  kikoff: number;
+  grant: number;
+  total: number;
+}
+
+// Calculate quarterly stats by aggregating monthly data
+export function calculateQuarterlyStats(monthlyStats: MonthlyStats[]): QuarterlyStats[] {
+  const quarterMap: Record<string, QuarterlyStats> = {};
+  
+  // Define quarter order for sorting
+  const quarterOrder = ['Q3 2025', 'Q4 2025', 'Q1 2026', 'Q2 2026', 'Q3 2026', 'Q4 2026'];
+  
+  monthlyStats.forEach(month => {
+    if (!quarterMap[month.quarter]) {
+      quarterMap[month.quarter] = {
+        quarter: month.quarter,
+        kikoff: 0,
+        grant: 0,
+        total: 0,
+      };
+    }
+    quarterMap[month.quarter].kikoff += month.kikoff;
+    quarterMap[month.quarter].grant += month.grant;
+    quarterMap[month.quarter].total += month.total;
+  });
+  
+  // Sort quarters chronologically
+  return Object.values(quarterMap).sort((a, b) => {
+    const idxA = quarterOrder.indexOf(a.quarter);
+    const idxB = quarterOrder.indexOf(b.quarter);
+    if (idxA === -1 && idxB === -1) return a.quarter.localeCompare(b.quarter);
+    if (idxA === -1) return 1;
+    if (idxB === -1) return -1;
+    return idxA - idxB;
+  });
+}
+
 // Get top N themes across all data
 export function getTopThemes(winners: Winner[], n: number = 5): string[] {
   const counts: Record<string, number> = {};
@@ -284,50 +324,100 @@ export function generateInsights(stats: MonthlyStats[], winners: Winner[]): Insi
     }
   }
   
-  // 2. Duration changes
-  const recentAvgDur = recentMonths.filter(m => m.avgDuration > 0);
-  const olderAvgDur = olderMonths.filter(m => m.avgDuration > 0);
+  // 2. Duration changes - per brand
+  const recentAvgDurKikoff = recentMonths.filter(m => m.avgDurationKikoff > 0);
+  const olderAvgDurKikoff = olderMonths.filter(m => m.avgDurationKikoff > 0);
   
-  if (recentAvgDur.length > 0 && olderAvgDur.length > 0) {
-    const avgRecentDur = recentAvgDur.reduce((sum, m) => sum + m.avgDuration, 0) / recentAvgDur.length;
-    const avgOlderDur = olderAvgDur.reduce((sum, m) => sum + m.avgDuration, 0) / olderAvgDur.length;
+  if (recentAvgDurKikoff.length > 0 && olderAvgDurKikoff.length > 0) {
+    const avgRecentDur = recentAvgDurKikoff.reduce((sum, m) => sum + m.avgDurationKikoff, 0) / recentAvgDurKikoff.length;
+    const avgOlderDur = olderAvgDurKikoff.reduce((sum, m) => sum + m.avgDurationKikoff, 0) / olderAvgDurKikoff.length;
     const durChange = avgRecentDur - avgOlderDur;
     
     if (Math.abs(durChange) >= 2) {
       insights.push({
         type: durChange < 0 ? 'decrease' : 'increase',
         metric: 'duration',
-        value: `Average duration ${durChange < 0 ? 'dropped' : 'increased'} from ${Math.round(avgOlderDur)}s to ${Math.round(avgRecentDur)}s`,
+        brand: 'KIKOFF',
+        value: `KIKOFF avg duration ${durChange < 0 ? 'dropped' : 'increased'} from ${Math.round(avgOlderDur)}s to ${Math.round(avgRecentDur)}s`,
       });
     }
   }
   
-  // 3. Execution type trends
-  const execTotals: Record<string, { recent: number; older: number }> = {};
+  const recentAvgDurGrant = recentMonths.filter(m => m.avgDurationGrant > 0);
+  const olderAvgDurGrant = olderMonths.filter(m => m.avgDurationGrant > 0);
+  
+  if (recentAvgDurGrant.length > 0 && olderAvgDurGrant.length > 0) {
+    const avgRecentDur = recentAvgDurGrant.reduce((sum, m) => sum + m.avgDurationGrant, 0) / recentAvgDurGrant.length;
+    const avgOlderDur = olderAvgDurGrant.reduce((sum, m) => sum + m.avgDurationGrant, 0) / olderAvgDurGrant.length;
+    const durChange = avgRecentDur - avgOlderDur;
+    
+    if (Math.abs(durChange) >= 2) {
+      insights.push({
+        type: durChange < 0 ? 'decrease' : 'increase',
+        metric: 'duration',
+        brand: 'GRANT',
+        value: `GRANT avg duration ${durChange < 0 ? 'dropped' : 'increased'} from ${Math.round(avgOlderDur)}s to ${Math.round(avgRecentDur)}s`,
+      });
+    }
+  }
+  
+  // 3. Execution type trends - per brand
+  const execTotalsKikoff: Record<string, { recent: number; older: number }> = {};
+  const execTotalsGrant: Record<string, { recent: number; older: number }> = {};
+  
   recentMonths.forEach(m => {
-    Object.entries(m.executions).forEach(([exec, count]) => {
-      if (!execTotals[exec]) execTotals[exec] = { recent: 0, older: 0 };
-      execTotals[exec].recent += count;
+    Object.entries(m.executionsKikoff).forEach(([exec, count]) => {
+      if (!execTotalsKikoff[exec]) execTotalsKikoff[exec] = { recent: 0, older: 0 };
+      execTotalsKikoff[exec].recent += count;
+    });
+    Object.entries(m.executionsGrant).forEach(([exec, count]) => {
+      if (!execTotalsGrant[exec]) execTotalsGrant[exec] = { recent: 0, older: 0 };
+      execTotalsGrant[exec].recent += count;
     });
   });
   olderMonths.forEach(m => {
-    Object.entries(m.executions).forEach(([exec, count]) => {
-      if (!execTotals[exec]) execTotals[exec] = { recent: 0, older: 0 };
-      execTotals[exec].older += count;
+    Object.entries(m.executionsKikoff).forEach(([exec, count]) => {
+      if (!execTotalsKikoff[exec]) execTotalsKikoff[exec] = { recent: 0, older: 0 };
+      execTotalsKikoff[exec].older += count;
+    });
+    Object.entries(m.executionsGrant).forEach(([exec, count]) => {
+      if (!execTotalsGrant[exec]) execTotalsGrant[exec] = { recent: 0, older: 0 };
+      execTotalsGrant[exec].older += count;
     });
   });
   
-  Object.entries(execTotals).forEach(([exec, { recent, older }]) => {
+  // KIKOFF execution trends
+  Object.entries(execTotalsKikoff).forEach(([exec, { recent, older }]) => {
     if (older > 0 && exec !== 'Unknown') {
       const avgRecent = recent / recentMonths.length;
       const avgOlder = older / olderMonths.length;
       const change = ((avgRecent - avgOlder) / avgOlder) * 100;
       
-      if (Math.abs(change) >= 30) {
+      if (Math.abs(change) >= 40) {
         insights.push({
           type: change > 0 ? 'increase' : 'decrease',
           metric: 'execution',
-          value: `${exec} ${change > 0 ? 'trending up' : 'trending down'} ${Math.abs(Math.round(change))}% recently`,
+          brand: 'KIKOFF',
+          value: `KIKOFF ${exec} ${change > 0 ? 'trending up' : 'trending down'} ${Math.abs(Math.round(change))}% recently`,
+          percentage: Math.round(change),
+        });
+      }
+    }
+  });
+  
+  // GRANT execution trends
+  Object.entries(execTotalsGrant).forEach(([exec, { recent, older }]) => {
+    if (older > 0 && exec !== 'Unknown') {
+      const avgRecent = recent / recentMonths.length;
+      const avgOlder = older / olderMonths.length;
+      const change = ((avgRecent - avgOlder) / avgOlder) * 100;
+      
+      if (Math.abs(change) >= 40) {
+        insights.push({
+          type: change > 0 ? 'increase' : 'decrease',
+          metric: 'execution',
+          brand: 'GRANT',
+          value: `GRANT ${exec} ${change > 0 ? 'trending up' : 'trending down'} ${Math.abs(Math.round(change))}% recently`,
           percentage: Math.round(change),
         });
       }
@@ -357,20 +447,39 @@ export function generateInsights(stats: MonthlyStats[], winners: Winner[]): Insi
     }
   });
   
-  // 5. Mention timing trends
-  const recentMention = recentMonths.filter(m => m.avgMention > 0);
-  const olderMention = olderMonths.filter(m => m.avgMention > 0);
+  // 5. Mention timing trends - per brand
+  const recentMentionKikoff = recentMonths.filter(m => m.avgMentionKikoff > 0);
+  const olderMentionKikoff = olderMonths.filter(m => m.avgMentionKikoff > 0);
   
-  if (recentMention.length > 0 && olderMention.length > 0) {
-    const avgRecentMen = recentMention.reduce((sum, m) => sum + m.avgMention, 0) / recentMention.length;
-    const avgOlderMen = olderMention.reduce((sum, m) => sum + m.avgMention, 0) / olderMention.length;
+  if (recentMentionKikoff.length > 0 && olderMentionKikoff.length > 0) {
+    const avgRecentMen = recentMentionKikoff.reduce((sum, m) => sum + m.avgMentionKikoff, 0) / recentMentionKikoff.length;
+    const avgOlderMen = olderMentionKikoff.reduce((sum, m) => sum + m.avgMentionKikoff, 0) / olderMentionKikoff.length;
     const menChange = avgRecentMen - avgOlderMen;
     
     if (Math.abs(menChange) >= 1) {
       insights.push({
         type: menChange < 0 ? 'decrease' : 'increase',
         metric: 'mention',
-        value: `First mention timing ${menChange < 0 ? 'earlier' : 'later'} (${avgOlderMen.toFixed(1)}s → ${avgRecentMen.toFixed(1)}s)`,
+        brand: 'KIKOFF',
+        value: `KIKOFF first mention ${menChange < 0 ? 'earlier' : 'later'} (${avgOlderMen.toFixed(1)}s → ${avgRecentMen.toFixed(1)}s)`,
+      });
+    }
+  }
+  
+  const recentMentionGrant = recentMonths.filter(m => m.avgMentionGrant > 0);
+  const olderMentionGrant = olderMonths.filter(m => m.avgMentionGrant > 0);
+  
+  if (recentMentionGrant.length > 0 && olderMentionGrant.length > 0) {
+    const avgRecentMen = recentMentionGrant.reduce((sum, m) => sum + m.avgMentionGrant, 0) / recentMentionGrant.length;
+    const avgOlderMen = olderMentionGrant.reduce((sum, m) => sum + m.avgMentionGrant, 0) / olderMentionGrant.length;
+    const menChange = avgRecentMen - avgOlderMen;
+    
+    if (Math.abs(menChange) >= 1) {
+      insights.push({
+        type: menChange < 0 ? 'decrease' : 'increase',
+        metric: 'mention',
+        brand: 'GRANT',
+        value: `GRANT first mention ${menChange < 0 ? 'earlier' : 'later'} (${avgOlderMen.toFixed(1)}s → ${avgRecentMen.toFixed(1)}s)`,
       });
     }
   }
