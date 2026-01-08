@@ -33,6 +33,8 @@ function extractGoogleDriveId(url: string): string | null {
 
 interface WinnerTableProps {
   winners: Winner[];
+  initialMonthFilter?: string | null;
+  initialBrandFilter?: 'KIKOFF' | 'GRANT' | null;
 }
 
 // Parse theme string into separate tags (same logic as Chips.tsx)
@@ -82,10 +84,10 @@ function getAllThemeTags(winners: Winner[]): string[] {
   return [...tagSet].sort();
 }
 
-export function WinnerTable({ winners }: WinnerTableProps) {
+export function WinnerTable({ winners, initialMonthFilter, initialBrandFilter }: WinnerTableProps) {
   const [search, setSearch] = useState('');
-  const [brandFilter, setBrandFilter] = useState<string>('all');
-  const [monthFilter, setMonthFilter] = useState<string>('all');
+  const [brandFilter, setBrandFilter] = useState<string>(initialBrandFilter || 'all');
+  const [monthFilter, setMonthFilter] = useState<string>(initialMonthFilter || 'all');
   const [executionFilter, setExecutionFilter] = useState<string>('all');
   const [themeFilter, setThemeFilter] = useState<string>('all');
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
