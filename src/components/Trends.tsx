@@ -63,7 +63,7 @@ const THEME_COLORS = [
 // Custom tooltip component
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload || payload.length === 0) return null;
-  
+
   return (
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-3">
       <p className="font-medium text-slate-900 dark:text-white mb-2">{label}</p>
@@ -73,6 +73,28 @@ function CustomTooltip({ active, payload, label }: any) {
         </p>
       ))}
     </div>
+  );
+}
+
+// Custom label for win rate bars showing delta
+function WinRateDeltaLabel({ x, y, width, dataKey, payload }: any) {
+  const delta = dataKey === 'winRateKikoff' ? payload.deltaKikoff : payload.deltaGrant;
+  if (delta === null || delta === undefined) return null;
+
+  const color = delta > 0 ? '#22c55e' : delta < 0 ? '#ef4444' : '#94a3b8';
+  const text = delta > 0 ? `+${delta.toFixed(1)}%` : delta === 0 ? '0%' : `${delta.toFixed(1)}%`;
+
+  return (
+    <text
+      x={x + width / 2}
+      y={y - 6}
+      fill={color}
+      textAnchor="middle"
+      fontSize={9}
+      fontWeight={500}
+    >
+      {text}
+    </text>
   );
 }
 
@@ -186,8 +208,8 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
     adTotals.forEach(at => {
       monthMap[at.month] = at;
     });
-    
-    return chartData.map(d => {
+
+    const rawData = chartData.map(d => {
       const adTotal = monthMap[d.month];
       if (!adTotal || adTotal.totalAds === 0) {
         return {
@@ -203,13 +225,16 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
           adsKikoff: 0,
           adsGrant: 0,
           adsTotal: 0,
+          deltaKikoff: null as number | null,
+          deltaGrant: null as number | null,
+          deltaTotal: null as number | null,
         };
       }
-      
+
       const winRateKikoff = adTotal.kikoffAds > 0 ? (d.kikoff / adTotal.kikoffAds) * 100 : 0;
       const winRateGrant = adTotal.grantAds > 0 ? (d.grant / adTotal.grantAds) * 100 : 0;
       const winRateTotal = adTotal.totalAds > 0 ? (d.total / adTotal.totalAds) * 100 : 0;
-      
+
       return {
         name: d.name,
         shortMonth: d.shortMonth,
@@ -223,8 +248,23 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
         adsKikoff: adTotal.kikoffAds,
         adsGrant: adTotal.grantAds,
         adsTotal: adTotal.totalAds,
+        deltaKikoff: null as number | null,
+        deltaGrant: null as number | null,
+        deltaTotal: null as number | null,
       };
     }).filter(d => d.adsTotal > 0); // Only show months with ad data
+
+    // Calculate deltas (month-over-month change)
+    return rawData.map((d, i) => {
+      if (i === 0) return d;
+      const prev = rawData[i - 1];
+      return {
+        ...d,
+        deltaKikoff: Math.round((d.winRateKikoff - prev.winRateKikoff) * 10) / 10,
+        deltaGrant: Math.round((d.winRateGrant - prev.winRateGrant) * 10) / 10,
+        deltaTotal: Math.round((d.winRateTotal - prev.winRateTotal) * 10) / 10,
+      };
+    });
   }, [chartData, adTotals]);
   
   // Calculate overall win rates
@@ -249,7 +289,19 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
       totalAds,
     };
   }, [winRateData]);
-  
+
+  // Get latest month's delta for trend indicators
+  const latestDelta = useMemo(() => {
+    if (winRateData.length < 2) return null;
+    const latest = winRateData[winRateData.length - 1];
+    return {
+      kikoff: latest.deltaKikoff,
+      grant: latest.deltaGrant,
+      total: latest.deltaTotal,
+      month: latest.month,
+    };
+  }, [winRateData]);
+
   // Calculate Y-axis domains
   const winnersDomain: [number, number] = useMemo(() => {
     const maxVal = Math.max(...chartData.map(d => Math.max(d.kikoff, d.grant, d.total)));
@@ -584,6 +636,14 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
               <div className="text-2xl font-bold text-[#00C853]">
                 {overallWinRates.kikoff.toFixed(1)}%
               </div>
+              {latestDelta && latestDelta.kikoff !== null && (
+                <div className={`text-xs font-medium mt-1 flex items-center gap-1 ${
+                  latestDelta.kikoff > 0 ? 'text-green-600' : latestDelta.kikoff < 0 ? 'text-red-500' : 'text-slate-400'
+                }`}>
+                  {latestDelta.kikoff > 0 ? '↑' : latestDelta.kikoff < 0 ? '↓' : '→'}
+                  {latestDelta.kikoff > 0 ? '+' : ''}{latestDelta.kikoff.toFixed(1)}% vs prev month
+                </div>
+              )}
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {overallWinRates.totalWinners.kikoff} wins / {overallWinRates.totalAds.kikoff} ads
               </div>
@@ -596,6 +656,14 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
               <div className="text-2xl font-bold text-amber-500">
                 {overallWinRates.grant.toFixed(1)}%
               </div>
+              {latestDelta && latestDelta.grant !== null && (
+                <div className={`text-xs font-medium mt-1 flex items-center gap-1 ${
+                  latestDelta.grant > 0 ? 'text-green-600' : latestDelta.grant < 0 ? 'text-red-500' : 'text-slate-400'
+                }`}>
+                  {latestDelta.grant > 0 ? '↑' : latestDelta.grant < 0 ? '↓' : '→'}
+                  {latestDelta.grant > 0 ? '+' : ''}{latestDelta.grant.toFixed(1)}% vs prev month
+                </div>
+              )}
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {overallWinRates.totalWinners.grant} wins / {overallWinRates.totalAds.grant} ads
               </div>
@@ -607,6 +675,14 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
               <div className="text-2xl font-bold text-slate-900 dark:text-white">
                 {overallWinRates.total.toFixed(1)}%
               </div>
+              {latestDelta && latestDelta.total !== null && (
+                <div className={`text-xs font-medium mt-1 flex items-center gap-1 ${
+                  latestDelta.total > 0 ? 'text-green-600' : latestDelta.total < 0 ? 'text-red-500' : 'text-slate-400'
+                }`}>
+                  {latestDelta.total > 0 ? '↑' : latestDelta.total < 0 ? '↓' : '→'}
+                  {latestDelta.total > 0 ? '+' : ''}{latestDelta.total.toFixed(1)}% vs prev month
+                </div>
+              )}
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 {overallWinRates.totalWinners.total} wins / {overallWinRates.totalAds.total} ads
               </div>
@@ -655,13 +731,37 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                   <Legend />
                   {brandFilter === 'all' ? (
                     <>
-                      <Bar dataKey="winRateKikoff" name="KIKOFF %" fill={KIKOFF_COLOR} radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="winRateGrant" name="GRANT %" fill={GRANT_COLOR} radius={[4, 4, 0, 0]} />
+                      <Bar
+                        dataKey="winRateKikoff"
+                        name="KIKOFF %"
+                        fill={KIKOFF_COLOR}
+                        radius={[4, 4, 0, 0]}
+                        label={(props: any) => <WinRateDeltaLabel {...props} dataKey="winRateKikoff" />}
+                      />
+                      <Bar
+                        dataKey="winRateGrant"
+                        name="GRANT %"
+                        fill={GRANT_COLOR}
+                        radius={[4, 4, 0, 0]}
+                        label={(props: any) => <WinRateDeltaLabel {...props} dataKey="winRateGrant" />}
+                      />
                     </>
                   ) : brandFilter === 'KIKOFF' ? (
-                    <Bar dataKey="winRateKikoff" name="KIKOFF %" fill={KIKOFF_COLOR} radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="winRateKikoff"
+                      name="KIKOFF %"
+                      fill={KIKOFF_COLOR}
+                      radius={[4, 4, 0, 0]}
+                      label={(props: any) => <WinRateDeltaLabel {...props} dataKey="winRateKikoff" />}
+                    />
                   ) : (
-                    <Bar dataKey="winRateGrant" name="GRANT %" fill={GRANT_COLOR} radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="winRateGrant"
+                      name="GRANT %"
+                      fill={GRANT_COLOR}
+                      radius={[4, 4, 0, 0]}
+                      label={(props: any) => <WinRateDeltaLabel {...props} dataKey="winRateGrant" />}
+                    />
                   )}
                 </BarChart>
               </ResponsiveContainer>
