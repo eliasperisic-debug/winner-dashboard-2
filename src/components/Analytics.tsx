@@ -574,9 +574,9 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
   }, [winners]);
   
-  // Count special UGC variants for note
+  // Count special UGC variants for note (only relevant for Kikoff)
   const specialUGCCount = useMemo(() => {
-    return winners.filter(w => isSpecialUGC(w.execution || '')).length;
+    return winners.filter(w => w.brand === 'KIKOFF' && isSpecialUGC(w.execution || '')).length;
   }, [winners]);
   
   // Theme groups
@@ -1273,11 +1273,6 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
                 <ExpandableRowV2 key={exec} label={exec} count={count} total={grantWinners.length} color={execColorClass[exec] || 'bg-slate-500'} />
               ))}
             </div>
-            {grantSpecialUGC > 0 && (
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 italic">
-                * {grantSpecialUGC} UGC with footage overlay
-              </p>
-            )}
           </div>
 
           {/* Mention Timing */}

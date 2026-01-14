@@ -15,7 +15,7 @@ export function AddWinnerForm({ onClose, onSuccess }: AddWinnerFormProps) {
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    month: 'January 2026',
+    month: 'July 2025',
     brand: 'KIKOFF',
     ticket: '',
     theme: '',
@@ -302,6 +302,8 @@ export function AddWinnerForm({ onClose, onSuccess }: AddWinnerFormProps) {
                 onChange={handleChange}
                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
               >
+                <option>July 2025</option>
+                <option>August 2025</option>
                 <option>September 2025</option>
                 <option>October 2025</option>
                 <option>November 2025</option>

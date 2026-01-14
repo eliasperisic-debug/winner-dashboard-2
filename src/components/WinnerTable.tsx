@@ -15,6 +15,7 @@ import {
   ProductOverlayChips,
   extractTitle,
 } from './Chips';
+import { ThemeSelector } from './ThemeSelector';
 
 // Extract Google Drive file ID from various URL formats
 function extractGoogleDriveId(url: string): string | null {
@@ -93,6 +94,8 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
   const [executionFilter, setExecutionFilter] = useState<string>('all');
   const [themeFilter, setThemeFilter] = useState<string>('all');
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  // Track locally updated themes (optimistic updates)
+  const [updatedThemes, setUpdatedThemes] = useState<Record<string, string>>({});
 
   // Get unique values for filters
   const months = useMemo(() => [...new Set(winners.map(w => w.month))].sort(), [winners]);
@@ -102,13 +105,16 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
   // Filter winners
   const filteredWinners = useMemo(() => {
     return winners.filter(winner => {
-      const matchesSearch = search === '' || 
+      // Use updated theme if available, otherwise use original
+      const currentTheme = updatedThemes[winner.ticket] ?? winner.theme;
+
+      const matchesSearch = search === '' ||
         winner.ticket.toLowerCase().includes(search.toLowerCase()) ||
-        winner.theme.toLowerCase().includes(search.toLowerCase()) ||
+        currentTheme.toLowerCase().includes(search.toLowerCase()) ||
         winner.notes.toLowerCase().includes(search.toLowerCase());
-      
+
       const matchesBrand = brandFilter === 'all' || winner.brand === brandFilter;
-      
+
       // Handle month filtering - single month OR multiple months (quarter)
       let matchesMonth = true;
       if (monthsFilter && monthsFilter.length > 0) {
@@ -116,13 +122,14 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
       } else if (monthFilter !== 'all') {
         matchesMonth = winner.month === monthFilter;
       }
-      
+
       const matchesExecution = executionFilter === 'all' || winner.execution === executionFilter;
-      const matchesTheme = themeFilter === 'all' || hasThemeTag(winner, themeFilter);
-      
+      // Use theme with updates applied
+      const matchesTheme = themeFilter === 'all' || parseThemeTags(currentTheme).includes(themeFilter);
+
       return matchesSearch && matchesBrand && matchesMonth && matchesExecution && matchesTheme;
     });
-  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter]);
+  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter, updatedThemes]);
 
   // Stats
   const stats = useMemo(() => {
@@ -277,8 +284,12 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-2">
-                      <ThemeChips theme={winner.theme} />
+                    <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                      <ThemeSelector
+                        ticket={winner.ticket}
+                        currentTheme={updatedThemes[winner.ticket] ?? winner.theme}
+                        onUpdate={(newTheme) => setUpdatedThemes(prev => ({ ...prev, [winner.ticket]: newTheme }))}
+                      />
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap">
                       <VariantChip variant={winner.variant} />

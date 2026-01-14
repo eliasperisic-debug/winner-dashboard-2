@@ -140,17 +140,39 @@ export function VariantChip({ variant }: { variant: string }) {
   );
 }
 
-// Month chip - seasonal colors
+// Month chip - seasonal colors (12 distinct colors)
 export function MonthChip({ month }: { month: string }) {
-  const monthStyles: Record<string, string> = {
-    September: 'bg-teal-500/15 text-teal-600 dark:bg-teal-400/20 dark:text-teal-300', // End of summer - teal/warm
-    October: 'bg-yellow-500/15 text-yellow-700 dark:bg-yellow-400/20 dark:text-yellow-300', // Fall - golden yellow
-    November: 'bg-orange-600/15 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300', // Thanksgiving - deep orange/brown
-    December: 'bg-sky-500/15 text-sky-600 dark:bg-sky-400/20 dark:text-sky-300', // Winter - cool blue
-    January: 'bg-blue-500/15 text-blue-600 dark:bg-blue-400/20 dark:text-blue-300', // Winter - blue
-  };
   const monthName = month.split(' ')[0];
-  return <Chip className={monthStyles[monthName] || 'bg-slate-100 text-slate-600'}>{month}</Chip>;
+
+  // Custom colors for maximum visual distinction
+  const monthColors: Record<string, { bg: string; text: string }> = {
+    January: { bg: '#1E3A5F', text: '#93C5FD' },   // Dark Navy
+    February: { bg: '#FCA5A5', text: '#7F1D1D' },  // Soft Coral
+    March: { bg: '#22C55E', text: '#FFFFFF' },     // Kelly Green
+    April: { bg: '#C4B5FD', text: '#4C1D95' },     // Soft Lavender
+    May: { bg: '#EC4899', text: '#FFFFFF' },       // Hot Pink
+    June: { bg: '#FDE047', text: '#713F12' },      // Bright Yellow
+    July: { bg: '#EF4444', text: '#FFFFFF' },      // True Red
+    August: { bg: '#F97316', text: '#FFFFFF' },    // Orange
+    September: { bg: '#14B8A6', text: '#FFFFFF' }, // Teal
+    October: { bg: '#A16207', text: '#FEF3C7' },   // Mustard Brown
+    November: { bg: '#7C2D12', text: '#FED7AA' },  // Rust/Sienna
+    December: { bg: '#67E8F9', text: '#164E63' },  // Ice Cyan
+  };
+
+  const colors = monthColors[monthName];
+  if (colors) {
+    return (
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium"
+        style={{ backgroundColor: colors.bg, color: colors.text }}
+      >
+        {month}
+      </span>
+    );
+  }
+
+  return <Chip className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">{month}</Chip>;
 }
 
 // Theme chip - color coded by category with cleaner palette (single chip version)
@@ -206,6 +228,31 @@ export function ThemeChip({ theme }: { theme: string }) {
   
   return <Chip className={style}>{cleanTheme}</Chip>;
 }
+
+// Available themes for selection dropdown
+export const AVAILABLE_THEMES = [
+  { value: 'seasonal', label: 'Seasonal' },
+  { value: 'skit', label: 'Skit' },
+  { value: 'halloween', label: 'Halloween' },
+  { value: 'christmas', label: 'Christmas' },
+  { value: 'thanksgiving', label: 'Thanksgiving' },
+  { value: 'new year', label: 'New Year' },
+  { value: 'prob/solve', label: 'Prob/Solve' },
+  { value: 'opportunity cost', label: 'Opportunity Cost' },
+  { value: 'education', label: 'Education' },
+  { value: 'student', label: 'Student' },
+  { value: 'analogy', label: 'Analogy' },
+  { value: 'evergreen', label: 'Evergreen' },
+  { value: 'aspirational', label: 'Aspirational' },
+  { value: 'denied', label: 'Denied' },
+  { value: 'held back', label: 'Held Back' },
+  { value: 'busy mom', label: 'Busy Mom' },
+  { value: 'paradise', label: 'Paradise' },
+  { value: 'bachelor', label: 'Bachelor' },
+  { value: 'comedy', label: 'Comedy' },
+  { value: 'good credit', label: 'Good Credit Education' },
+  { value: 'winning', label: 'Winning' },
+];
 
 // Theme styles for individual tags
 // Note: "holiday" removed (merged into seasonal), "concept" removed (not a theme)
@@ -324,9 +371,9 @@ export function CapsChip({ caps }: { caps: string }) {
   if (capsLower.includes('green') && !capsLower.includes('red')) {
     return <Chip className="bg-emerald-500 text-white">Green Keys</Chip>;
   }
-  // TikTok style
+  // TikTok style - dark with white text and subtle border for contrast
   if (capsLower.includes('tiktok')) {
-    return <Chip className="bg-slate-900 text-white dark:bg-white dark:text-slate-900">TikTok</Chip>;
+    return <Chip className="bg-zinc-900 text-white ring-1 ring-zinc-600 dark:bg-zinc-900 dark:text-white dark:ring-zinc-500">TikTok</Chip>;
   }
   // Classic / grey highlight
   if (capsLower.includes('classic') || capsLower.includes('grey highlight')) {
