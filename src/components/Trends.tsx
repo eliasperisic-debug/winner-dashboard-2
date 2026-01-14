@@ -9,12 +9,14 @@ import {
   Area,
   BarChart,
   Bar,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
+  ReferenceLine,
 } from 'recharts';
 import {
   calculateMonthlyStats,
@@ -689,82 +691,54 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
             </div>
           </div>
           
-          {/* Win Rate Trend Chart */}
+          {/* Win Rate Table */}
           <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
-            <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Win Rate Over Time</h4>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={winRateData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="name" 
-                    tick={{ fontSize: 11, fill: '#64748b' }}
-                    tickLine={{ stroke: '#cbd5e1' }}
-                  />
-                  <YAxis 
-                    tick={{ fontSize: 11, fill: '#64748b' }}
-                    tickLine={{ stroke: '#cbd5e1' }}
-                    tickFormatter={(value) => `${value}%`}
-                    domain={[0, 'auto']}
-                  />
-                  <Tooltip 
-                    content={({ active, payload, label }) => {
-                      if (!active || !payload || payload.length === 0) return null;
-                      const data = payload[0]?.payload;
-                      return (
-                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-3">
-                          <p className="font-medium text-slate-900 dark:text-white mb-2">{data?.month}</p>
-                          <div className="space-y-1 text-sm">
-                            <p className="text-[#00C853]">
-                              KIKOFF: <span className="font-semibold">{data?.winRateKikoff}%</span>
-                              <span className="text-slate-400 ml-1">({data?.winnersKikoff}/{data?.adsKikoff})</span>
-                            </p>
-                            <p className="text-amber-500">
-                              GRANT: <span className="font-semibold">{data?.winRateGrant}%</span>
-                              <span className="text-slate-400 ml-1">({data?.winnersGrant}/{data?.adsGrant})</span>
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Legend />
-                  {brandFilter === 'all' ? (
-                    <>
-                      <Bar
-                        dataKey="winRateKikoff"
-                        name="KIKOFF %"
-                        fill={KIKOFF_COLOR}
-                        radius={[4, 4, 0, 0]}
-                        label={(props: any) => <WinRateDeltaLabel {...props} dataKey="winRateKikoff" />}
-                      />
-                      <Bar
-                        dataKey="winRateGrant"
-                        name="GRANT %"
-                        fill={GRANT_COLOR}
-                        radius={[4, 4, 0, 0]}
-                        label={(props: any) => <WinRateDeltaLabel {...props} dataKey="winRateGrant" />}
-                      />
-                    </>
-                  ) : brandFilter === 'KIKOFF' ? (
-                    <Bar
-                      dataKey="winRateKikoff"
-                      name="KIKOFF %"
-                      fill={KIKOFF_COLOR}
-                      radius={[4, 4, 0, 0]}
-                      label={(props: any) => <WinRateDeltaLabel {...props} dataKey="winRateKikoff" />}
-                    />
-                  ) : (
-                    <Bar
-                      dataKey="winRateGrant"
-                      name="GRANT %"
-                      fill={GRANT_COLOR}
-                      radius={[4, 4, 0, 0]}
-                      label={(props: any) => <WinRateDeltaLabel {...props} dataKey="winRateGrant" />}
-                    />
-                  )}
-                </BarChart>
-              </ResponsiveContainer>
+            <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Win Rate by Month</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    <th className="text-left py-2 px-3 font-medium text-slate-600 dark:text-slate-400">Month</th>
+                    <th className="text-right py-2 px-3 font-medium text-[#00C853]">KIKOFF</th>
+                    <th className="text-center py-2 px-1 font-medium text-slate-400 text-xs">vs prev</th>
+                    <th className="text-right py-2 px-3 font-medium text-amber-500">GRANT</th>
+                    <th className="text-center py-2 px-1 font-medium text-slate-400 text-xs">vs prev</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {winRateData.slice().reverse().map((d, i) => (
+                    <tr key={d.month} className={`border-b border-slate-100 dark:border-slate-700/50 ${i === 0 ? 'bg-slate-50 dark:bg-slate-700/30' : ''}`}>
+                      <td className="py-2 px-3 text-slate-700 dark:text-slate-300 font-medium">{d.month}</td>
+                      <td className="py-2 px-3 text-right font-semibold text-slate-900 dark:text-white">{d.winRateKikoff}%</td>
+                      <td className="py-2 px-1 text-center">
+                        {d.deltaKikoff !== null ? (
+                          <span className={`inline-flex items-center text-xs font-medium ${
+                            d.deltaKikoff > 0 ? 'text-green-600' : d.deltaKikoff < 0 ? 'text-red-500' : 'text-slate-400'
+                          }`}>
+                            {d.deltaKikoff > 0 ? '↑' : d.deltaKikoff < 0 ? '↓' : '–'}
+                            {d.deltaKikoff !== 0 && <span className="ml-0.5">{Math.abs(d.deltaKikoff).toFixed(1)}</span>}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 dark:text-slate-600">–</span>
+                        )}
+                      </td>
+                      <td className="py-2 px-3 text-right font-semibold text-slate-900 dark:text-white">{d.winRateGrant}%</td>
+                      <td className="py-2 px-1 text-center">
+                        {d.deltaGrant !== null ? (
+                          <span className={`inline-flex items-center text-xs font-medium ${
+                            d.deltaGrant > 0 ? 'text-green-600' : d.deltaGrant < 0 ? 'text-red-500' : 'text-slate-400'
+                          }`}>
+                            {d.deltaGrant > 0 ? '↑' : d.deltaGrant < 0 ? '↓' : '–'}
+                            {d.deltaGrant !== 0 && <span className="ml-0.5">{Math.abs(d.deltaGrant).toFixed(1)}</span>}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 dark:text-slate-600">–</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

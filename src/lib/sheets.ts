@@ -1,11 +1,25 @@
 import { google } from 'googleapis';
 import { Winner } from '@/types/winner';
 
-const auth = new google.auth.GoogleAuth({
-  credentials: {
+// Support base64-encoded credentials (more reliable for Vercel)
+// or fall back to individual env vars
+function getCredentials() {
+  if (process.env.GOOGLE_CREDENTIALS_BASE64) {
+    const decoded = Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString('utf-8');
+    const creds = JSON.parse(decoded);
+    return {
+      client_email: creds.client_email,
+      private_key: creds.private_key,
+    };
+  }
+  return {
     client_email: process.env.GOOGLE_SHEETS_CLIENT_EMAIL,
     private_key: process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-  },
+  };
+}
+
+const auth = new google.auth.GoogleAuth({
+  credentials: getCredentials(),
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
 });
 
