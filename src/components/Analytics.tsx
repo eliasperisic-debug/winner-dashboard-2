@@ -497,10 +497,15 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
   // Calculate win rate data
   const winRateData = useMemo(() => {
     const brandKey = brand === 'KIKOFF' ? 'kikoffAds' : 'grantAds';
-    
+
     // If time filter is applied at parent level, use that data
     // Otherwise calculate based on winRateMonthFilter
-    const monthsToInclude = winRateMonthFilter === 'all' ? availableMonths : [winRateMonthFilter];
+    // Exclude July/August (incomplete ad data)
+    const filteredMonths = availableMonths.filter(m => {
+      const monthLower = m.toLowerCase();
+      return !monthLower.includes('july') && !monthLower.includes('august');
+    });
+    const monthsToInclude = winRateMonthFilter === 'all' ? filteredMonths : [winRateMonthFilter];
     
     let totalWinners = 0;
     let totalAdsCount = 0;
@@ -954,14 +959,27 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
 function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: { kikoffWinners: Winner[]; grantWinners: Winner[]; allWinners: Winner[]; adTotals: MonthlyAdTotals[] }) {
   // Calculate win rates for comparison view
   const winRates = useMemo(() => {
-    let kikoffWins = kikoffWinners.length;
-    let grantWins = grantWinners.length;
+    // Get unique months from winners, excluding July/August (incomplete ad data)
+    const months = [...new Set(allWinners.map(w => w.month))].filter(month => {
+      const monthLower = month.toLowerCase();
+      return !monthLower.includes('july') && !monthLower.includes('august');
+    });
+
+    // Only count winners from valid months
+    const validKikoffWinners = kikoffWinners.filter(w => {
+      const monthLower = w.month.toLowerCase();
+      return !monthLower.includes('july') && !monthLower.includes('august');
+    });
+    const validGrantWinners = grantWinners.filter(w => {
+      const monthLower = w.month.toLowerCase();
+      return !monthLower.includes('july') && !monthLower.includes('august');
+    });
+
+    let kikoffWins = validKikoffWinners.length;
+    let grantWins = validGrantWinners.length;
     let kikoffAds = 0;
     let grantAds = 0;
-    
-    // Get unique months from winners
-    const months = [...new Set(allWinners.map(w => w.month))];
-    
+
     months.forEach(month => {
       const adEntry = adTotals.find(a => a.month === month);
       if (adEntry) {
@@ -969,7 +987,7 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
         grantAds += adEntry.grantAds;
       }
     });
-    
+
     return {
       kikoff: kikoffAds > 0 ? (kikoffWins / kikoffAds) * 100 : 0,
       grant: grantAds > 0 ? (grantWins / grantAds) * 100 : 0,

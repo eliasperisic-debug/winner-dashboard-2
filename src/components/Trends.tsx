@@ -56,11 +56,15 @@ const EXEC_COLORS: Record<string, string> = {
   'Unknown': '#94a3b8',
 };
 
-// Theme colors (rotating palette)
+// 5 distinct theme colors - assigned to active/selected themes only
 const THEME_COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+  '#f43f5e', // Rose/Red
+  '#3b82f6', // Blue
+  '#f59e0b', // Amber/Orange
+  '#8b5cf6', // Purple
+  '#10b981', // Emerald/Green
 ];
+
 
 // Custom tooltip component
 function CustomTooltip({ active, payload, label }: any) {
@@ -141,6 +145,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
   const [viewMode, setViewMode] = useState<ViewMode>('monthly');
   const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
   const [showThemeCustomizer, setShowThemeCustomizer] = useState(false);
+  const [hoveredTheme, setHoveredTheme] = useState<string | null>(null);
   
   // Calculate monthly stats
   const monthlyStats = useMemo(() => calculateMonthlyStats(winners), [winners]);
@@ -186,7 +191,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
     });
   }, [chartData, allExecutions, brandFilter]);
   
-  // Prepare theme trend data
+  // Prepare theme trend data (monthly)
   const themeData = useMemo(() => {
     return chartData.map(d => {
       const themeDataPoint: Record<string, any> = { name: d.name, shortMonth: d.shortMonth };
@@ -202,6 +207,118 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
       return themeDataPoint;
     });
   }, [chartData, activeThemes, brandFilter]);
+
+  // Prepare quarterly theme trend data
+  const quarterlyThemeData = useMemo(() => {
+    const quarterMap: Record<string, Record<string, number>> = {};
+
+    chartData.forEach(d => {
+      if (!quarterMap[d.quarter]) {
+        quarterMap[d.quarter] = {};
+        activeThemes.forEach(theme => {
+          quarterMap[d.quarter][theme] = 0;
+        });
+      }
+      activeThemes.forEach(theme => {
+        if (brandFilter === 'KIKOFF') {
+          quarterMap[d.quarter][theme] += d.themesKikoff[theme] || 0;
+        } else if (brandFilter === 'GRANT') {
+          quarterMap[d.quarter][theme] += d.themesGrant[theme] || 0;
+        } else {
+          quarterMap[d.quarter][theme] += d.themes[theme] || 0;
+        }
+      });
+    });
+
+    return Object.entries(quarterMap).map(([quarter, themes]) => ({
+      name: quarter,
+      ...themes,
+    }));
+  }, [chartData, activeThemes, brandFilter]);
+
+  // Dynamic Y-axis domain for theme trends (one higher than max value)
+  const themeDomain = useMemo((): [number, number] => {
+    const dataToUse = viewMode === 'monthly' ? themeData : quarterlyThemeData;
+    let maxVal = 0;
+    dataToUse.forEach(d => {
+      activeThemes.forEach(theme => {
+        const val = d[theme] || 0;
+        if (val > maxVal) maxVal = val;
+      });
+    });
+    return [0, maxVal + 1];
+  }, [themeData, quarterlyThemeData, activeThemes, viewMode]);
+
+  // Calculate theme totals for sidebar (includes ALL themes, not just active)
+  const themeTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    allThemes.forEach(theme => {
+      totals[theme] = chartData.reduce((sum, d) => {
+        if (brandFilter === 'KIKOFF') {
+          return sum + (d.themesKikoff[theme] || 0);
+        } else if (brandFilter === 'GRANT') {
+          return sum + (d.themesGrant[theme] || 0);
+        } else {
+          return sum + (d.themes[theme] || 0);
+        }
+      }, 0);
+    });
+    return totals;
+  }, [chartData, allThemes, brandFilter]);
+
+  // Calculate top themes per period (month or quarter) for the leaderboard
+  const topThemesPerPeriod = useMemo(() => {
+    if (viewMode === 'monthly') {
+      return chartData.map(d => {
+        const themeSource = brandFilter === 'KIKOFF'
+          ? d.themesKikoff
+          : brandFilter === 'GRANT'
+            ? d.themesGrant
+            : d.themes;
+
+        const themeCounts = Object.entries(themeSource)
+          .filter(([_, count]) => count > 0)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3);
+
+        return {
+          period: d.shortMonth,
+          fullPeriod: d.month,
+          themes: themeCounts,
+          totalWinners: brandFilter === 'KIKOFF' ? d.kikoff : brandFilter === 'GRANT' ? d.grant : d.total,
+        };
+      });
+    } else {
+      // Quarterly aggregation
+      const quarterMap: Record<string, { themes: Record<string, number>; total: number }> = {};
+
+      chartData.forEach(d => {
+        if (!quarterMap[d.quarter]) {
+          quarterMap[d.quarter] = { themes: {}, total: 0 };
+        }
+        const themeSource = brandFilter === 'KIKOFF'
+          ? d.themesKikoff
+          : brandFilter === 'GRANT'
+            ? d.themesGrant
+            : d.themes;
+
+        Object.entries(themeSource).forEach(([theme, count]) => {
+          quarterMap[d.quarter].themes[theme] = (quarterMap[d.quarter].themes[theme] || 0) + count;
+        });
+        quarterMap[d.quarter].total += brandFilter === 'KIKOFF' ? d.kikoff : brandFilter === 'GRANT' ? d.grant : d.total;
+      });
+
+      return Object.entries(quarterMap).map(([quarter, data]) => ({
+        period: quarter,
+        fullPeriod: quarter,
+        themes: Object.entries(data.themes)
+          .filter(([_, count]) => count > 0)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3),
+        totalWinners: data.total,
+      }));
+    }
+  }, [chartData, brandFilter, viewMode]);
   
   // Prepare win rate data by matching monthly stats with ad totals
   const winRateData = useMemo(() => {
@@ -254,7 +371,13 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
         deltaGrant: null as number | null,
         deltaTotal: null as number | null,
       };
-    }).filter(d => d.adsTotal > 0); // Only show months with ad data
+    }).filter(d => {
+      // Only show months with ad data, excluding July/August (incomplete data)
+      if (d.adsTotal === 0) return false;
+      const monthLower = d.month.toLowerCase();
+      if (monthLower.includes('july') || monthLower.includes('august')) return false;
+      return true;
+    });
 
     // Calculate deltas (month-over-month change)
     return rawData.map((d, i) => {
@@ -478,7 +601,103 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
           </div>
         </div>
       </div>
-      
+
+      {/* Top Themes Per Period - Leaderboard Cards */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+            <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+            Top Themes by {viewMode === 'monthly' ? 'Month' : 'Quarter'}
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Most popular themes each {viewMode === 'monthly' ? 'month' : 'quarter'}
+          </p>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+          {topThemesPerPeriod.map((periodData) => (
+            <div
+              key={periodData.fullPeriod}
+              className={`flex-shrink-0 ${viewMode === 'quarterly' ? 'w-48' : 'w-40'} bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 border border-slate-200 dark:border-slate-600`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                  {periodData.period}
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  {periodData.totalWinners} wins
+                </span>
+              </div>
+              <div className="space-y-2">
+                {periodData.themes.length > 0 ? (
+                  periodData.themes.map(([theme, count], idx) => (
+                    <div
+                      key={theme}
+                      className="flex items-center gap-2"
+                    >
+                      {/* Ribbon Badge */}
+                      <div className="flex-shrink-0 w-6 h-8 relative">
+                        <svg viewBox="0 0 24 32" className="w-full h-full">
+                          {/* Ribbon tails */}
+                          <path
+                            d="M6 14 L6 28 L9 24 L12 28 L12 14"
+                            fill={idx === 0 ? '#CA8A04' : idx === 1 ? '#64748B' : '#C2410C'}
+                          />
+                          <path
+                            d="M18 14 L18 28 L15 24 L12 28 L12 14"
+                            fill={idx === 0 ? '#EAB308' : idx === 1 ? '#94A3B8' : '#EA580C'}
+                          />
+                          {/* Circle badge */}
+                          <circle
+                            cx="12"
+                            cy="10"
+                            r="9"
+                            fill={idx === 0 ? '#EAB308' : idx === 1 ? '#94A3B8' : '#EA580C'}
+                          />
+                          <circle
+                            cx="12"
+                            cy="10"
+                            r="7"
+                            fill={idx === 0 ? '#FCD34D' : idx === 1 ? '#CBD5E1' : '#FB923C'}
+                          />
+                          {/* Number */}
+                          <text
+                            x="12"
+                            y="14"
+                            textAnchor="middle"
+                            fontSize="10"
+                            fontWeight="bold"
+                            fill={idx === 0 ? '#92400E' : idx === 1 ? '#374151' : '#9A3412'}
+                          >
+                            {idx + 1}
+                          </text>
+                        </svg>
+                      </div>
+                      <span className="text-xs text-slate-700 dark:text-slate-300 truncate flex-1 font-medium" title={theme}>
+                        {theme}
+                      </span>
+                      <span className={`text-xs font-bold ${
+                        idx === 0
+                          ? 'text-yellow-600 dark:text-yellow-400'
+                          : idx === 1
+                            ? 'text-slate-500 dark:text-slate-400'
+                            : 'text-orange-600 dark:text-orange-400'
+                      }`}>
+                        {count}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400 dark:text-slate-500 italic">No data</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Winners Over Time - Hero Chart */}
       <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-4">
@@ -611,125 +830,81 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
         </div>
       </div>
       
-      {/* Win Rate Section */}
-      {winRateData.length > 0 && (
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-emerald-900 dark:text-emerald-100 flex items-center gap-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Win Rate Analysis
-              </h3>
-              <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
-                Winners / Total Ads = Win Rate %
-              </p>
-            </div>
-          </div>
-          
-          {/* Overall Win Rate Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <img src="/kikoff-logo.png" alt="" className="w-5 h-5 rounded" />
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">KIKOFF</span>
-              </div>
-              <div className="text-2xl font-bold text-[#00C853]">
-                {overallWinRates.kikoff.toFixed(1)}%
-              </div>
-              {latestDelta && latestDelta.kikoff !== null && (
-                <div className={`text-xs font-medium mt-1 flex items-center gap-1 ${
-                  latestDelta.kikoff > 0 ? 'text-green-600' : latestDelta.kikoff < 0 ? 'text-red-500' : 'text-slate-400'
-                }`}>
-                  {latestDelta.kikoff > 0 ? '↑' : latestDelta.kikoff < 0 ? '↓' : '→'}
-                  {latestDelta.kikoff > 0 ? '+' : ''}{latestDelta.kikoff.toFixed(1)}% vs prev month
+      {/* Win Rate + Execution Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Win Rate - Compact */}
+        {winRateData.length > 0 && (
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800 p-4">
+            <h3 className="text-base font-semibold text-emerald-900 dark:text-emerald-100 mb-3 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Win Rate Analysis
+            </h3>
+
+            {/* Compact Win Rate Cards */}
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <img src="/kikoff-logo.png" alt="" className="w-4 h-4 rounded" />
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">KIKOFF</span>
                 </div>
-              )}
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {overallWinRates.totalWinners.kikoff} wins / {overallWinRates.totalAds.kikoff} ads
-              </div>
-            </div>
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <img src="/grant-logo.png" alt="" className="w-5 h-5 rounded" />
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">GRANT</span>
-              </div>
-              <div className="text-2xl font-bold text-amber-500">
-                {overallWinRates.grant.toFixed(1)}%
-              </div>
-              {latestDelta && latestDelta.grant !== null && (
-                <div className={`text-xs font-medium mt-1 flex items-center gap-1 ${
-                  latestDelta.grant > 0 ? 'text-green-600' : latestDelta.grant < 0 ? 'text-red-500' : 'text-slate-400'
-                }`}>
-                  {latestDelta.grant > 0 ? '↑' : latestDelta.grant < 0 ? '↓' : '→'}
-                  {latestDelta.grant > 0 ? '+' : ''}{latestDelta.grant.toFixed(1)}% vs prev month
+                <div className="text-xl font-bold text-[#00C853]">
+                  {overallWinRates.kikoff.toFixed(1)}%
                 </div>
-              )}
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {overallWinRates.totalWinners.grant} wins / {overallWinRates.totalAds.grant} ads
               </div>
-            </div>
-            <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">OVERALL</span>
-              </div>
-              <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                {overallWinRates.total.toFixed(1)}%
-              </div>
-              {latestDelta && latestDelta.total !== null && (
-                <div className={`text-xs font-medium mt-1 flex items-center gap-1 ${
-                  latestDelta.total > 0 ? 'text-green-600' : latestDelta.total < 0 ? 'text-red-500' : 'text-slate-400'
-                }`}>
-                  {latestDelta.total > 0 ? '↑' : latestDelta.total < 0 ? '↓' : '→'}
-                  {latestDelta.total > 0 ? '+' : ''}{latestDelta.total.toFixed(1)}% vs prev month
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <img src="/grant-logo.png" alt="" className="w-4 h-4 rounded" />
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">GRANT</span>
                 </div>
-              )}
-              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                {overallWinRates.totalWinners.total} wins / {overallWinRates.totalAds.total} ads
+                <div className="text-xl font-bold text-amber-500">
+                  {overallWinRates.grant.toFixed(1)}%
+                </div>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-2.5 shadow-sm">
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">OVERALL</span>
+                <div className="text-xl font-bold text-slate-900 dark:text-white">
+                  {overallWinRates.total.toFixed(1)}%
+                </div>
               </div>
             </div>
-          </div>
-          
-          {/* Win Rate Table */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm">
-            <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Win Rate by Month</h4>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+
+            {/* Compact Table */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-2 shadow-sm max-h-[180px] overflow-y-auto">
+              <table className="w-full text-xs" style={{ tableLayout: 'fixed' }}>
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="text-left py-2 px-3 font-medium text-slate-600 dark:text-slate-400">Month</th>
-                    <th className="text-right py-2 px-3 font-medium text-[#00C853]">KIKOFF</th>
-                    <th className="text-center py-2 px-1 font-medium text-slate-400 text-xs">vs prev</th>
-                    <th className="text-right py-2 px-3 font-medium text-amber-500">GRANT</th>
-                    <th className="text-center py-2 px-1 font-medium text-slate-400 text-xs">vs prev</th>
+                    <th className="text-left py-1 px-1.5 font-medium text-slate-500 w-12">Month</th>
+                    <th className="text-right py-1 px-1.5 font-medium text-[#00C853] w-14">K</th>
+                    <th className="text-right py-1 px-1.5 font-medium text-slate-400 w-16 text-[10px]">vs prev</th>
+                    <th className="text-right py-1 px-1.5 font-medium text-amber-500 w-14">G</th>
+                    <th className="text-right py-1 px-1.5 font-medium text-slate-400 w-16 text-[10px]">vs prev</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {winRateData.slice().reverse().map((d, i) => (
+                  {winRateData.slice().reverse().slice(0, 6).map((d, i) => (
                     <tr key={d.month} className={`border-b border-slate-100 dark:border-slate-700/50 ${i === 0 ? 'bg-slate-50 dark:bg-slate-700/30' : ''}`}>
-                      <td className="py-2 px-3 text-slate-700 dark:text-slate-300 font-medium">{d.month}</td>
-                      <td className="py-2 px-3 text-right font-semibold text-slate-900 dark:text-white">{d.winRateKikoff}%</td>
-                      <td className="py-2 px-1 text-center">
+                      <td className="py-1 px-1.5 text-slate-600 dark:text-slate-400">{d.shortMonth}</td>
+                      <td className="py-1 px-1.5 text-right font-medium text-slate-900 dark:text-white">{d.winRateKikoff}%</td>
+                      <td className="py-1 px-1.5 text-right">
                         {d.deltaKikoff !== null ? (
-                          <span className={`inline-flex items-center text-xs font-medium ${
+                          <span className={`text-[10px] font-medium ${
                             d.deltaKikoff > 0 ? 'text-green-600' : d.deltaKikoff < 0 ? 'text-red-500' : 'text-slate-400'
                           }`}>
-                            {d.deltaKikoff > 0 ? '↑' : d.deltaKikoff < 0 ? '↓' : '–'}
-                            {d.deltaKikoff !== 0 && <span className="ml-0.5">{Math.abs(d.deltaKikoff).toFixed(1)}</span>}
+                            {d.deltaKikoff > 0 ? '+' : ''}{d.deltaKikoff.toFixed(1)}%
                           </span>
                         ) : (
                           <span className="text-slate-300 dark:text-slate-600">–</span>
                         )}
                       </td>
-                      <td className="py-2 px-3 text-right font-semibold text-slate-900 dark:text-white">{d.winRateGrant}%</td>
-                      <td className="py-2 px-1 text-center">
+                      <td className="py-1 px-1.5 text-right font-medium text-slate-900 dark:text-white">{d.winRateGrant}%</td>
+                      <td className="py-1 px-1.5 text-right">
                         {d.deltaGrant !== null ? (
-                          <span className={`inline-flex items-center text-xs font-medium ${
+                          <span className={`text-[10px] font-medium ${
                             d.deltaGrant > 0 ? 'text-green-600' : d.deltaGrant < 0 ? 'text-red-500' : 'text-slate-400'
                           }`}>
-                            {d.deltaGrant > 0 ? '↑' : d.deltaGrant < 0 ? '↓' : '–'}
-                            {d.deltaGrant !== 0 && <span className="ml-0.5">{Math.abs(d.deltaGrant).toFixed(1)}</span>}
+                            {d.deltaGrant > 0 ? '+' : ''}{d.deltaGrant.toFixed(1)}%
                           </span>
                         ) : (
                           <span className="text-slate-300 dark:text-slate-600">–</span>
@@ -741,29 +916,26 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
               </table>
             </div>
           </div>
-        </div>
-      )}
-      
-      {/* Two Column Grid for Other Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Execution Type Trends */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Execution Type Trends</h3>
-          <div className="h-[300px]">
+        )}
+
+        {/* Execution Trends */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Execution Trends</h3>
+          <div className="h-[280px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={executionData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                   tickLine={{ stroke: '#cbd5e1' }}
                 />
-                <YAxis 
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                <YAxis
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                   tickLine={{ stroke: '#cbd5e1' }}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend />
+                <Legend wrapperStyle={{ fontSize: '10px' }} />
                 {allExecutions.filter(e => e !== 'Unknown').map((exec) => (
                   <Area
                     key={exec}
@@ -780,27 +952,208 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
             </ResponsiveContainer>
           </div>
         </div>
-        
+      </div>
+
+      {/* Theme Trends - Full Width with Sidebar */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+            Theme Trends {viewMode === 'quarterly' && '(Quarterly)'}
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Select themes to compare · Hover to highlight
+          </p>
+        </div>
+
+        <div className="flex gap-6">
+          {/* Theme Sidebar Selector */}
+          <div className="w-52 flex-shrink-0 space-y-1 max-h-[380px] overflow-y-auto pr-2">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">Select themes:</p>
+            {[...allThemes].sort((a, b) => (themeTotals[b] || 0) - (themeTotals[a] || 0)).map((theme) => {
+              const isSelected = selectedThemes.length === 0
+                ? topThemes.includes(theme)
+                : selectedThemes.includes(theme);
+              const themeTotal = themeTotals[theme] || 0;
+              const activeIndex = activeThemes.indexOf(theme);
+              const color = activeIndex >= 0 ? THEME_COLORS[activeIndex % THEME_COLORS.length] : null;
+
+              return (
+                <label
+                  key={theme}
+                  className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all border ${
+                    isSelected
+                      ? 'border-opacity-50'
+                      : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-700/30'
+                  }`}
+                  style={isSelected && color ? {
+                    backgroundColor: `${color}15`,
+                    borderColor: `${color}50`,
+                  } : undefined}
+                  onMouseEnter={() => isSelected && setHoveredTheme(theme)}
+                  onMouseLeave={() => setHoveredTheme(null)}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        if (selectedThemes.length === 0) {
+                          setSelectedThemes([theme]);
+                        } else {
+                          setSelectedThemes([...selectedThemes, theme]);
+                        }
+                      } else {
+                        if (selectedThemes.length === 0) {
+                          setSelectedThemes(topThemes.filter(t => t !== theme));
+                        } else {
+                          setSelectedThemes(selectedThemes.filter(t => t !== theme));
+                        }
+                      }
+                    }}
+                    className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 focus:ring-blue-500"
+                    style={color ? { accentColor: color } : undefined}
+                  />
+                  {color ? (
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                  ) : (
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-slate-300 dark:bg-slate-600" />
+                  )}
+                  <span
+                    className={`text-xs flex-1 truncate ${isSelected ? 'font-medium' : 'text-slate-600 dark:text-slate-400'}`}
+                    style={isSelected && color ? { color } : undefined}
+                  >
+                    {theme}
+                  </span>
+                  <span
+                    className={`text-xs font-medium ${isSelected ? '' : 'text-slate-400 dark:text-slate-500'}`}
+                    style={isSelected && color ? { color } : undefined}
+                  >
+                    {themeTotal}
+                  </span>
+                </label>
+              );
+            })}
+
+            {selectedThemes.length > 0 && (
+              <button
+                onClick={() => setSelectedThemes([])}
+                className="w-full mt-2 px-2 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              >
+                Reset to Top 5
+              </button>
+            )}
+          </div>
+
+          {/* Large Chart */}
+          <div className="flex-1 min-w-0">
+            <div className="h-[350px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={viewMode === 'monthly' ? themeData : quarterlyThemeData}>
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tickLine={{ stroke: '#cbd5e1' }}
+                    axisLine={{ stroke: '#e2e8f0' }}
+                  />
+                  <YAxis
+                    domain={themeDomain}
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tickLine={{ stroke: '#cbd5e1' }}
+                    axisLine={{ stroke: '#e2e8f0' }}
+                    tickCount={themeDomain[1] > 10 ? 10 : themeDomain[1] + 1}
+                    allowDecimals={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  {activeThemes.map((theme, index) => {
+                    const color = THEME_COLORS[index % THEME_COLORS.length];
+                    const isHovered = hoveredTheme === theme;
+                    const isFaded = hoveredTheme !== null && !isHovered;
+                    return (
+                      <Line
+                        key={theme}
+                        type="linear"
+                        dataKey={theme}
+                        name={theme}
+                        stroke={color}
+                        strokeWidth={isHovered ? 4 : 2.5}
+                        strokeOpacity={isFaded ? 0.25 : 1}
+                        dot={{
+                          fill: color,
+                          strokeWidth: 2,
+                          r: isHovered ? 6 : 4,
+                          stroke: '#fff',
+                          fillOpacity: isFaded ? 0.25 : 1,
+                          strokeOpacity: isFaded ? 0.25 : 1,
+                        }}
+                        activeDot={{ r: 7, fill: color, stroke: '#fff', strokeWidth: 2 }}
+                        connectNulls
+                      />
+                    );
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Color Legend below chart */}
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+              {activeThemes.map((theme, index) => {
+                const color = THEME_COLORS[index % THEME_COLORS.length];
+                const isHovered = hoveredTheme === theme;
+                const isFaded = hoveredTheme !== null && !isHovered;
+                return (
+                  <div
+                    key={theme}
+                    className="flex items-center gap-1.5 cursor-pointer px-2 py-1 rounded-md transition-all"
+                    style={{
+                      backgroundColor: isHovered ? `${color}20` : 'transparent',
+                      opacity: isFaded ? 0.4 : 1,
+                    }}
+                    onMouseEnter={() => setHoveredTheme(theme)}
+                    onMouseLeave={() => setHoveredTheme(null)}
+                  >
+                    <span
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span
+                      className="text-xs font-medium"
+                      style={{ color: isHovered ? color : undefined }}
+                    >
+                      {theme}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Duration and First Mention Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Duration Trends */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Average Duration Trends</h3>
-          <div className="h-[300px]">
+          <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey="shortMonth" 
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                <XAxis
+                  dataKey="shortMonth"
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                   tickLine={{ stroke: '#cbd5e1' }}
                 />
-                <YAxis 
+                <YAxis
                   domain={durationDomain}
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                   tickLine={{ stroke: '#cbd5e1' }}
                   tickFormatter={(value) => `${value}s`}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend />
+                <Legend wrapperStyle={{ fontSize: '11px' }} />
                 {brandFilter === 'all' ? (
                   <>
                     <Line
@@ -809,8 +1162,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                       name="KIKOFF"
                       stroke={KIKOFF_COLOR}
                       strokeWidth={2}
-                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
-                      activeDot={{ r: 6, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
+                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3 }}
                       connectNulls
                     />
                     <Line
@@ -819,8 +1171,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                       name="GRANT"
                       stroke={GRANT_COLOR}
                       strokeWidth={2}
-                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
-                      activeDot={{ r: 6, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
+                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3 }}
                       connectNulls
                     />
                   </>
@@ -831,8 +1182,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                     name="KIKOFF"
                     stroke={KIKOFF_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
-                    activeDot={{ r: 6, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
+                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3 }}
                     connectNulls
                   />
                 ) : (
@@ -842,8 +1192,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                     name="GRANT"
                     stroke={GRANT_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
-                    activeDot={{ r: 6, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
+                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3 }}
                     connectNulls
                   />
                 )}
@@ -851,78 +1200,27 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
             </ResponsiveContainer>
           </div>
         </div>
-        
-        {/* Theme Trends */}
+
+        {/* First Mention Timing Trends */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-              Theme Trends {selectedThemes.length === 0 ? '(Top 5)' : '(Custom)'}
-            </h3>
-            <button
-              onClick={() => setShowThemeCustomizer(true)}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-            >
-              Customize
-            </button>
-          </div>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={themeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fontSize: 11, fill: '#64748b' }}
-                  tickLine={{ stroke: '#cbd5e1' }}
-                />
-                <YAxis 
-                  tick={{ fontSize: 11, fill: '#64748b' }}
-                  tickLine={{ stroke: '#cbd5e1' }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                {activeThemes.map((theme, i) => (
-                  <Line
-                    key={theme}
-                    type="monotone"
-                    dataKey={theme}
-                    name={theme}
-                    stroke={THEME_COLORS[i % THEME_COLORS.length]}
-                    strokeWidth={2}
-                    dot={{ fill: THEME_COLORS[i % THEME_COLORS.length], strokeWidth: 2, r: 3 }}
-                    activeDot={{ r: 5, fill: THEME_COLORS[i % THEME_COLORS.length] }}
-                    connectNulls
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          {selectedThemes.length === 0 && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
-              Showing default top 5 themes · <button onClick={() => setShowThemeCustomizer(true)} className="text-blue-600 dark:text-blue-400 hover:underline">Click to customize</button>
-            </p>
-          )}
-        </div>
-        
-        {/* Mention Timing Trends */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">First Mention Timing Trends</h3>
-          <div className="h-[300px]">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">First Mention Timing</h3>
+          <div className="h-[250px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis 
-                  dataKey="shortMonth" 
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                <XAxis
+                  dataKey="shortMonth"
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                   tickLine={{ stroke: '#cbd5e1' }}
                 />
-                <YAxis 
+                <YAxis
                   domain={mentionDomain}
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 10, fill: '#64748b' }}
                   tickLine={{ stroke: '#cbd5e1' }}
                   tickFormatter={(value) => `${value}s`}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend />
+                <Legend wrapperStyle={{ fontSize: '11px' }} />
                 {brandFilter === 'all' ? (
                   <>
                     <Line
@@ -931,8 +1229,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                       name="KIKOFF"
                       stroke={KIKOFF_COLOR}
                       strokeWidth={2}
-                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
-                      activeDot={{ r: 6, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
+                      dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3 }}
                       connectNulls
                     />
                     <Line
@@ -941,8 +1238,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                       name="GRANT"
                       stroke={GRANT_COLOR}
                       strokeWidth={2}
-                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
-                      activeDot={{ r: 6, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
+                      dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3 }}
                       connectNulls
                     />
                   </>
@@ -953,8 +1249,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                     name="KIKOFF"
                     stroke={KIKOFF_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
-                    activeDot={{ r: 6, fill: KIKOFF_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'KIKOFF') }}
+                    dot={{ fill: KIKOFF_COLOR, strokeWidth: 2, r: 3 }}
                     connectNulls
                   />
                 ) : (
@@ -964,8 +1259,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                     name="GRANT"
                     stroke={GRANT_COLOR}
                     strokeWidth={2}
-                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3, cursor: 'pointer' }}
-                    activeDot={{ r: 6, fill: GRANT_COLOR, cursor: 'pointer', onClick: (e: any, data: any) => handlePointClick(data, 'GRANT') }}
+                    dot={{ fill: GRANT_COLOR, strokeWidth: 2, r: 3 }}
                     connectNulls
                   />
                 )}
@@ -974,7 +1268,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
           </div>
         </div>
       </div>
-      
+
       {/* Key Insights Section */}
       {insights.length > 0 && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-200 dark:border-blue-800 p-6">
