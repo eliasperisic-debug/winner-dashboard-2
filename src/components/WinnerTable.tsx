@@ -13,7 +13,6 @@ import {
   ThemeChips,
   CapsChip,
   ProductOverlayChips,
-  extractTitle,
 } from './Chips';
 import { ThemeSelector } from './ThemeSelector';
 
@@ -279,8 +278,8 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                             </svg>
                           </span>
                         )}
-                        <div className="text-sm text-slate-700 dark:text-slate-200 font-medium truncate max-w-[180px]" title={winner.ticket}>
-                          {extractTitle(winner.ticket)}
+                        <div className="text-sm text-slate-700 dark:text-slate-200 font-medium">
+                          {winner.ticket}
                         </div>
                       </div>
                     </td>
