@@ -355,7 +355,10 @@ export function ThemeChips({ theme }: { theme: string }) {
 
 // Caps style chip - clean simple labels
 export function CapsChip({ caps }: { caps: string }) {
-  if (!caps || caps === 'n/a') return <span className="text-slate-400 text-xs">-</span>;
+  // Show "None" chip for empty, blank, or n/a values (red style like Product UI)
+  if (!caps || caps.trim() === '' || caps.toLowerCase() === 'n/a') {
+    return <Chip className="bg-red-500/15 text-red-600 dark:bg-red-400/20 dark:text-red-300">None</Chip>;
+  }
   
   const capsLower = caps.toLowerCase();
   
