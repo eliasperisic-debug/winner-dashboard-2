@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, Fragment, useEffect } from 'react';
 import { Winner } from '@/types/winner';
 import {
   BrandChip,
@@ -92,18 +92,110 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
   const [monthsFilter, setMonthsFilter] = useState<string[] | null>(initialMonthsFilter || null);
   const [executionFilter, setExecutionFilter] = useState<string>('all');
   const [themeFilter, setThemeFilter] = useState<string>('all');
-  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   // Track locally updated themes (optimistic updates)
   const [updatedThemes, setUpdatedThemes] = useState<Record<string, string>>({});
+
+  // Pinned tickets state with localStorage persistence
+  const [pinnedTickets, setPinnedTickets] = useState<Set<string>>(new Set());
+  const [pinnedLoaded, setPinnedLoaded] = useState(false);
+
+  // Load from localStorage on mount (client-side only)
+  useEffect(() => {
+    const saved = localStorage.getItem('pinnedWinners');
+    if (saved) {
+      setPinnedTickets(new Set(JSON.parse(saved)));
+    }
+    setPinnedLoaded(true);
+  }, []);
+
+  // Save to localStorage when pins change (only after initial load)
+  useEffect(() => {
+    if (pinnedLoaded) {
+      localStorage.setItem('pinnedWinners', JSON.stringify([...pinnedTickets]));
+    }
+  }, [pinnedTickets, pinnedLoaded]);
+
+  // Toggle pin function
+  const togglePin = (ticket: string) => {
+    setPinnedTickets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(ticket)) {
+        newSet.delete(ticket);
+      } else {
+        newSet.add(ticket);
+      }
+      return newSet;
+    });
+  };
+
+  // Clear all pins
+  const clearPins = () => {
+    setPinnedTickets(new Set());
+    setShowPinAnalysis(false);
+  };
+
+  // Pin analysis panel state
+  const [showPinAnalysis, setShowPinAnalysis] = useState(false);
 
   // Get unique values for filters
   const months = useMemo(() => [...new Set(winners.map(w => w.month))].sort(), [winners]);
   const executions = useMemo(() => [...new Set(winners.map(w => w.execution))], [winners]);
   const themeTags = useMemo(() => getAllThemeTags(winners), [winners]);
 
-  // Filter winners
+  // Get pinned winners (always visible, regardless of filters)
+  const pinnedWinners = useMemo(() => {
+    return winners.filter(winner => pinnedTickets.has(winner.ticket));
+  }, [winners, pinnedTickets]);
+
+  // Compute pin analysis data
+  const pinAnalysis = useMemo(() => {
+    if (pinnedWinners.length === 0) return null;
+
+    const total = pinnedWinners.length;
+    const kikoff = pinnedWinners.filter(w => w.brand === 'KIKOFF').length;
+    const grant = pinnedWinners.filter(w => w.brand === 'GRANT').length;
+
+    // Execution breakdown
+    const executions: Record<string, number> = {};
+    pinnedWinners.forEach(w => {
+      const exec = w.execution === '*UGC*' ? 'UGC' : w.execution;
+      executions[exec] = (executions[exec] || 0) + 1;
+    });
+
+    // Duration breakdown
+    const durations: Record<string, number> = { '0-8s': 0, '9-15s': 0, '16-22s': 0, '23s+': 0 };
+    pinnedWinners.forEach(w => {
+      const dur = parseInt(w.duration) || 0;
+      if (dur <= 8) durations['0-8s']++;
+      else if (dur <= 15) durations['9-15s']++;
+      else if (dur <= 22) durations['16-22s']++;
+      else durations['23s+']++;
+    });
+
+    // Theme breakdown
+    const themes: Record<string, number> = {};
+    pinnedWinners.forEach(w => {
+      parseThemeTags(w.theme).forEach(tag => {
+        themes[tag] = (themes[tag] || 0) + 1;
+      });
+    });
+
+    // Month breakdown
+    const months: Record<string, number> = {};
+    pinnedWinners.forEach(w => {
+      months[w.month] = (months[w.month] || 0) + 1;
+    });
+
+    return { total, kikoff, grant, executions, durations, themes, months };
+  }, [pinnedWinners]);
+
+  // Filter winners (excluding pinned ones which are shown separately)
   const filteredWinners = useMemo(() => {
     return winners.filter(winner => {
+      // Exclude pinned items from normal filtered list
+      if (pinnedTickets.has(winner.ticket)) return false;
+
       // Use updated theme if available, otherwise use original
       const currentTheme = updatedThemes[winner.ticket] ?? winner.theme;
 
@@ -128,17 +220,27 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
 
       return matchesSearch && matchesBrand && matchesMonth && matchesExecution && matchesTheme;
     });
-  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter, updatedThemes]);
+  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter, updatedThemes, pinnedTickets]);
 
-  // Stats
+  // What to display:
+  // 1. Search active → show ONLY search results (to find items to pin)
+  // 2. No search, have pins → show ONLY pinned items
+  // 3. No search, no pins → show all items
+  const displayMode = search !== '' ? 'search' : (pinnedWinners.length > 0 ? 'pinned' : 'all');
+
+  const displayWinners = displayMode === 'search'
+    ? filteredWinners
+    : (displayMode === 'pinned' ? pinnedWinners : filteredWinners);
+
+  // Stats (based on displayed winners: pinned + filtered)
   const stats = useMemo(() => {
-    const total = filteredWinners.length;
-    const kikoff = filteredWinners.filter(w => w.brand === 'KIKOFF').length;
-    const grant = filteredWinners.filter(w => w.brand === 'GRANT').length;
-    const aiCount = filteredWinners.filter(w => w.execution === 'AI').length;
-    const ugcCount = filteredWinners.filter(w => w.execution === 'UGC' || w.execution === '*UGC*').length;
+    const total = displayWinners.length;
+    const kikoff = displayWinners.filter(w => w.brand === 'KIKOFF').length;
+    const grant = displayWinners.filter(w => w.brand === 'GRANT').length;
+    const aiCount = displayWinners.filter(w => w.execution === 'AI').length;
+    const ugcCount = displayWinners.filter(w => w.execution === 'UGC' || w.execution === '*UGC*').length;
     return { total, kikoff, grant, aiCount, ugcCount };
-  }, [filteredWinners]);
+  }, [displayWinners]);
 
   return (
     <div className="space-y-4">
@@ -221,6 +323,32 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
               <option key={tag} value={tag}>{tag}</option>
             ))}
           </select>
+          {pinnedTickets.size > 0 && (
+            <>
+              <button
+                onClick={() => setShowPinAnalysis(!showPinAnalysis)}
+                className={`px-3 py-2 text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
+                  showPinAnalysis
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Analyze Pins
+              </button>
+              <button
+                onClick={clearPins}
+                className="px-3 py-2 text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/>
+                </svg>
+                Clear Pins ({pinnedTickets.size})
+              </button>
+            </>
+          )}
           {(brandFilter !== 'all' || monthFilter !== 'all' || executionFilter !== 'all' || themeFilter !== 'all' || search !== '') && (
             <button
               onClick={() => { setBrandFilter('all'); setMonthFilter('all'); setExecutionFilter('all'); setThemeFilter('all'); setSearch(''); }}
@@ -231,6 +359,128 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
           )}
         </div>
       </div>
+
+      {/* Pin Analysis Panel */}
+      {showPinAnalysis && pinAnalysis && (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-700/50 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Pinned Videos Analysis
+            </h3>
+            <button
+              onClick={() => setShowPinAnalysis(false)}
+              className="text-blue-500 hover:text-blue-700 dark:text-blue-400"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 text-center shadow-sm">
+              <div className="text-2xl font-bold text-slate-900 dark:text-white">{pinAnalysis.total}</div>
+              <div className="text-xs text-slate-500 uppercase">Total Pinned</div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 text-center shadow-sm">
+              <div className="text-2xl font-bold text-blue-600">{pinAnalysis.kikoff}</div>
+              <div className="text-xs text-slate-500 uppercase">Kikoff</div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 text-center shadow-sm">
+              <div className="text-2xl font-bold text-emerald-600">{pinAnalysis.grant}</div>
+              <div className="text-xs text-slate-500 uppercase">Grant</div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 text-center shadow-sm">
+              <div className="text-2xl font-bold text-violet-600">{Object.keys(pinAnalysis.themes).length}</div>
+              <div className="text-xs text-slate-500 uppercase">Themes</div>
+            </div>
+          </div>
+
+          {/* Detailed Breakdowns */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Execution Types */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Execution</h4>
+              <div className="space-y-1.5">
+                {Object.entries(pinAnalysis.executions).sort((a, b) => b[1] - a[1]).map(([exec, count]) => (
+                  <div key={exec} className="flex items-center justify-between text-sm">
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                      exec === 'UGC' ? 'bg-amber-100 text-amber-700' :
+                      exec === 'AI' ? 'bg-violet-100 text-violet-700' :
+                      exec === 'FLIX' ? 'bg-pink-100 text-pink-700' :
+                      'bg-slate-100 text-slate-700'
+                    }`}>{exec}</span>
+                    <span className="text-slate-600 dark:text-slate-300 font-medium">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Duration */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Duration</h4>
+              <div className="space-y-1.5">
+                {Object.entries(pinAnalysis.durations).filter(([, count]) => count > 0).map(([dur, count]) => (
+                  <div key={dur} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-300">{dur}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{ width: `${(count / pinAnalysis.total) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-slate-600 dark:text-slate-300 font-medium w-4 text-right">{count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Themes */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Top Themes</h4>
+              <div className="space-y-1.5">
+                {Object.entries(pinAnalysis.themes).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([theme, count]) => (
+                  <div key={theme} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-300 truncate">{theme}</span>
+                    <span className="text-slate-600 dark:text-slate-300 font-medium">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Months */}
+            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Months</h4>
+              <div className="space-y-1.5">
+                {Object.entries(pinAnalysis.months).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([month, count]) => (
+                  <div key={month} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600 dark:text-slate-300 truncate text-xs">{month}</span>
+                    <span className="text-slate-600 dark:text-slate-300 font-medium">{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Pinned Videos List */}
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+            <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">Pinned Videos</h4>
+            <div className="flex flex-wrap gap-2">
+              {pinnedWinners.map(w => (
+                <span key={w.ticket} className="px-2 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded text-xs">
+                  {w.ticket.length > 30 ? w.ticket.substring(0, 30) + '...' : w.ticket}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Click hint */}
       <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
@@ -256,134 +506,176 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                 <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Music</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-              {filteredWinners.map((winner, idx) => (
-                <Fragment key={idx}>
-                  <tr 
-                    className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors ${expandedRow === idx ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
-                    onClick={() => setExpandedRow(expandedRow === idx ? null : idx)}
-                  >
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <MonthChip month={winner.month} />
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <BrandChip brand={winner.brand} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="flex items-center gap-1.5">
-                        {winner.videoUrl && (
-                          <span className="text-blue-500 dark:text-blue-400 flex-shrink-0" title="Video available">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                              <path d="M8 5v14l11-7z"/>
+            <tbody key={`tbody-${displayMode}-${search}-${displayWinners.length}`} className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              {/* Section header based on display mode */}
+              {displayMode === 'pinned' && (
+                <tr className="bg-amber-50/50 dark:bg-amber-900/10">
+                  <td colSpan={11} className="px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/>
+                      </svg>
+                      Pinned ({pinnedWinners.length})
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {displayMode === 'search' && (
+                <tr className="bg-blue-50/50 dark:bg-blue-900/10">
+                  <td colSpan={11} className="px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider">
+                    Search Results for "{search}" ({displayWinners.length})
+                  </td>
+                </tr>
+              )}
+
+              {/* Single loop through displayWinners */}
+              {displayWinners.map((winner, idx) => {
+                const isPinned = pinnedTickets.has(winner.ticket);
+                return (
+                  <Fragment key={winner.ticket}>
+                    <tr
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors ${
+                        expandedRow === winner.ticket ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                      } ${
+                        isPinned ? 'bg-amber-50/30 dark:bg-amber-900/5 border-l-2 border-l-amber-400 dark:border-l-amber-500' : ''
+                      }`}
+                      onClick={() => setExpandedRow(expandedRow === winner.ticket ? null : winner.ticket)}
+                    >
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <MonthChip month={winner.month} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <BrandChip brand={winner.brand} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePin(winner.ticket);
+                            }}
+                            className={`flex-shrink-0 p-0.5 rounded transition-colors ${
+                              isPinned
+                                ? 'text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300'
+                                : 'text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400'
+                            }`}
+                            title={isPinned ? 'Unpin' : 'Pin for comparison'}
+                          >
+                            <svg className="w-4 h-4" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={isPinned ? 0 : 2} viewBox="0 0 24 24">
+                              <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/>
                             </svg>
-                          </span>
-                        )}
-                        <div className="text-sm text-slate-700 dark:text-slate-200 font-medium">
-                          {winner.ticket}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                      <ThemeSelector
-                        ticket={winner.ticket}
-                        currentTheme={updatedThemes[winner.ticket] ?? winner.theme}
-                        onUpdate={(newTheme) => setUpdatedThemes(prev => ({ ...prev, [winner.ticket]: newTheme }))}
-                      />
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <VariantChip variant={winner.variant} />
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <DurationChip duration={winner.duration} />
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <MentionChip mention={winner.mention} />
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <ExecutionChip execution={winner.execution} />
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <CapsChip caps={winner.caps} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <ProductOverlayChips overlay={winner.productOverlay} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <MusicChips music={winner.music} />
-                    </td>
-                  </tr>
-                  {expandedRow === idx && (
-                    <tr className="bg-slate-50/80 dark:bg-slate-900/30">
-                      <td colSpan={11} className="px-4 py-4">
-                        <div className="flex flex-col lg:flex-row gap-4">
-                          {/* Video Player - Left side, compact */}
-                          {winner.videoUrl && extractGoogleDriveId(winner.videoUrl) ? (
-                            <div className="lg:w-72 flex-shrink-0">
-                              <div className="bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '1/1' }}>
-                                <iframe
-                                  src={`https://drive.google.com/file/d/${extractGoogleDriveId(winner.videoUrl)}/preview`}
-                                  className="w-full h-full"
-                                  allow="autoplay; encrypted-media"
-                                  allowFullScreen
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="lg:w-72 flex-shrink-0">
-                              <div className="bg-slate-200 dark:bg-slate-700 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500" style={{ aspectRatio: '1/1' }}>
-                                <div className="text-center p-4">
-                                  <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                  </svg>
-                                  <p className="text-xs">No video</p>
-                                </div>
-                              </div>
-                            </div>
+                          </button>
+                          {winner.videoUrl && (
+                            <span className="text-blue-500 dark:text-blue-400 flex-shrink-0" title="Video available">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                              </svg>
+                            </span>
                           )}
-                          
-                          {/* Details - Right side */}
-                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
-                              <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Full Ticket</span>
-                              <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.ticket || '-'}</p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
-                              <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Test Differentiators</span>
-                              <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.testDifferentiators || '-'}</p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
-                              <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Text Overlay Style</span>
-                              <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.textOverlay || '-'}</p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
-                              <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Caps Style (Full)</span>
-                              <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.caps || '-'}</p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
-                              <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Product Overlay (Full)</span>
-                              <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.productOverlay || '-'}</p>
-                            </div>
-                            <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
-                              <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Music</span>
-                              <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.music || '-'}</p>
-                            </div>
-                            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-700/50 shadow-sm sm:col-span-2">
-                              <span className="font-semibold text-amber-700 dark:text-amber-300 text-xs uppercase tracking-wide block mb-1.5">Notes</span>
-                              <p className="text-amber-800 dark:text-amber-200 text-sm break-words">{winner.notes || 'No notes available'}</p>
-                            </div>
+                          <div className="text-sm text-slate-700 dark:text-slate-200 font-medium">
+                            {winner.ticket}
                           </div>
                         </div>
                       </td>
+                      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                        <ThemeSelector
+                          ticket={winner.ticket}
+                          currentTheme={updatedThemes[winner.ticket] ?? winner.theme}
+                          onUpdate={(newTheme) => setUpdatedThemes(prev => ({ ...prev, [winner.ticket]: newTheme }))}
+                        />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <VariantChip variant={winner.variant} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <DurationChip duration={winner.duration} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <MentionChip mention={winner.mention} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <ExecutionChip execution={winner.execution} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <CapsChip caps={winner.caps} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <ProductOverlayChips overlay={winner.productOverlay} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <MusicChips music={winner.music} />
+                      </td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
+                    {expandedRow === winner.ticket && (
+                      <tr className="bg-slate-50/80 dark:bg-slate-900/30">
+                        <td colSpan={11} className="px-4 py-4">
+                          <div className="flex flex-col lg:flex-row gap-4">
+                            {winner.videoUrl && extractGoogleDriveId(winner.videoUrl) ? (
+                              <div className="lg:w-72 flex-shrink-0">
+                                <div className="bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '1/1' }}>
+                                  <iframe
+                                    src={`https://drive.google.com/file/d/${extractGoogleDriveId(winner.videoUrl)}/preview`}
+                                    className="w-full h-full"
+                                    allow="autoplay; encrypted-media"
+                                    allowFullScreen
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="lg:w-72 flex-shrink-0">
+                                <div className="bg-slate-200 dark:bg-slate-700 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500" style={{ aspectRatio: '1/1' }}>
+                                  <div className="text-center p-4">
+                                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    <p className="text-xs">No video</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Full Ticket</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.ticket || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Test Differentiators</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.testDifferentiators || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Text Overlay Style</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.textOverlay || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Caps Style (Full)</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.caps || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Product Overlay (Full)</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.productOverlay || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Music</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.music || '-'}</p>
+                              </div>
+                              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-700/50 shadow-sm sm:col-span-2">
+                                <span className="font-semibold text-amber-700 dark:text-amber-300 text-xs uppercase tracking-wide block mb-1.5">Notes</span>
+                                <p className="text-amber-800 dark:text-amber-200 text-sm break-words">{winner.notes || 'No notes available'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        {filteredWinners.length === 0 && (
+        {pinnedWinners.length === 0 && filteredWinners.length === 0 && (
           <div className="text-center py-12 text-slate-400 dark:text-slate-500">
-            No winners found matching your filters.
+            {search !== '' ? `No results found for "${search}"` : 'No winners found matching your filters.'}
           </div>
         )}
       </div>
