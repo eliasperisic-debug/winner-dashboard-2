@@ -58,7 +58,7 @@ export async function getWinners(): Promise<Winner[]> {
     ifBroll: row[13] || '',
     notes: row[14] || '',
     videoUrl: row[15] || '',
-  }));
+  })).reverse();
 }
 
 // Monthly ad totals for win rate calculations
