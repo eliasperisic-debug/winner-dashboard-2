@@ -36,6 +36,22 @@ export function BrandChip({ brand }: { brand: string }) {
   return <Chip className="bg-gray-100 text-gray-600">{brand}</Chip>;
 }
 
+// Type chips - Video vs Static
+export function TypeChip({ type }: { type: 'Video' | 'Static' }) {
+  if (type === 'Static') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-cyan-500/15 text-cyan-600 dark:bg-cyan-400/20 dark:text-cyan-300 ring-1 ring-cyan-500/20">
+        Static
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-500/15 text-violet-600 dark:bg-violet-400/20 dark:text-violet-300 ring-1 ring-violet-500/20">
+      Video
+    </span>
+  );
+}
+
 // Execution chips - distinct colors for each type
 export function ExecutionChip({ execution }: { execution: string }) {
   const styles: Record<string, string> = {
