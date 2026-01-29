@@ -494,26 +494,23 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
     });
   }, [winners]);
   
-  // Calculate win rate data
+  // Calculate win rate data (Video only - no tracking for static ad totals)
   const winRateData = useMemo(() => {
     const brandKey = brand === 'KIKOFF' ? 'kikoffAds' : 'grantAds';
 
-    // If time filter is applied at parent level, use that data
-    // Otherwise calculate based on winRateMonthFilter
-    // Exclude July/August (incomplete ad data)
-    const filteredMonths = availableMonths.filter(m => {
-      const monthLower = m.toLowerCase();
-      return !monthLower.includes('july') && !monthLower.includes('august');
-    });
-    const monthsToInclude = winRateMonthFilter === 'all' ? filteredMonths : [winRateMonthFilter];
-    
+    // Use all available months, or filter by winRateMonthFilter
+    const monthsToInclude = winRateMonthFilter === 'all' ? availableMonths : [winRateMonthFilter];
+
     let totalWinners = 0;
     let totalAdsCount = 0;
     const monthlyData: { month: string; winners: number; ads: number; winRate: number }[] = [];
-    
+
     monthsToInclude.forEach(month => {
-      const monthWinners = winners.filter(w => w.month === month).length;
-      const adTotalEntry = adTotals.find(a => a.month === month);
+      // Only count Video winners for win rate (no static ad totals available)
+      const monthWinners = winners.filter(w => w.month === month && w.type === 'Video').length;
+      // Flexible month matching - try exact match, then month-only match
+      const monthOnly = month.split(' ')[0];
+      const adTotalEntry = adTotals.find(a => a.month === month || a.month === monthOnly || a.month.split(' ')[0] === monthOnly);
       const monthAds = adTotalEntry ? adTotalEntry[brandKey] : 0;
       
       if (monthAds > 0) {
@@ -558,20 +555,23 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
       '16-22s (Long)': [],
       '23s+ (Very Long)': [],
     };
-    winners.forEach(w => {
+    // Only include video winners for duration analysis
+    winners.filter(w => w.type === 'Video').forEach(w => {
       const d = parseInt(w.duration?.replace(/[^0-9]/g, '') || '0');
       if (d > 0) groups[getDurationRange(d)].push(w);
     });
     return groups;
   }, [winners]);
   
-  const durations = winners.map(w => parseInt(w.duration?.replace(/[^0-9]/g, '') || '0')).filter(d => d > 0);
+  // Only include video winners for duration analysis (static ads don't have duration)
+  const videoWinners = winners.filter(w => w.type === 'Video');
+  const durations = videoWinners.map(w => parseInt(w.duration?.replace(/[^0-9]/g, '') || '0')).filter(d => d > 0);
   const avgDuration = durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
   
-  // Execution groups - normalize *UGC* to UGC
+  // Execution groups - normalize *UGC* to UGC (video only)
   const executionGroups = useMemo(() => {
     const groups: Record<string, Winner[]> = {};
-    winners.forEach(w => {
+    winners.filter(w => w.type === 'Video').forEach(w => {
       const exec = normalizeExecution(w.execution || '');
       if (!groups[exec]) groups[exec] = [];
       groups[exec].push(w);
@@ -579,9 +579,9 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
   }, [winners]);
   
-  // Count special UGC variants for note (only relevant for Kikoff)
+  // Count special UGC variants for note (only relevant for Kikoff, video only)
   const specialUGCCount = useMemo(() => {
-    return winners.filter(w => w.brand === 'KIKOFF' && isSpecialUGC(w.execution || '')).length;
+    return winners.filter(w => w.brand === 'KIKOFF' && w.type === 'Video' && isSpecialUGC(w.execution || '')).length;
   }, [winners]);
   
   // Theme groups
@@ -596,10 +596,10 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
   }, [winners]);
   
-  // Caps groups
+  // Caps groups (video only)
   const capsGroups = useMemo(() => {
     const groups: Record<string, Winner[]> = {};
-    winners.forEach(w => {
+    winners.filter(w => w.type === 'Video').forEach(w => {
       const caps = normalizeCaps(w.caps || '');
       if (!groups[caps]) groups[caps] = [];
       groups[caps].push(w);
@@ -607,10 +607,10 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
   }, [winners]);
   
-  // Music groups
+  // Music groups (video only - static ads don't have music)
   const musicGroups = useMemo(() => {
     const groups: Record<string, Winner[]> = {};
-    winners.forEach(w => {
+    winners.filter(w => w.type === 'Video').forEach(w => {
       normalizeMusic(w.music || '').forEach(genre => {
         if (!groups[genre]) groups[genre] = [];
         groups[genre].push(w);
@@ -634,14 +634,16 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
       '7-9s (Late)': [],
       '10s+ (Very Late)': [],
     };
-    winners.forEach(w => {
+    // Only include video winners for mention timing
+    winners.filter(w => w.type === 'Video').forEach(w => {
       const m = parseInt(w.mention?.replace(/[^0-9]/g, '') || '0');
       if (m > 0) groups[getMentionRange(m)].push(w);
     });
     return groups;
   }, [winners]);
   
-  const mentions = winners.map(w => parseInt(w.mention?.replace(/[^0-9]/g, '') || '0')).filter(m => m > 0);
+  // Only include video winners for mention timing (static ads don't have mentions)
+  const mentions = videoWinners.map(w => parseInt(w.mention?.replace(/[^0-9]/g, '') || '0')).filter(m => m > 0);
   const avgMention = mentions.length > 0 ? Math.round(mentions.reduce((a, b) => a + b, 0) / mentions.length) : 0;
 
   return (
@@ -687,6 +689,7 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
               </svg>
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Win Rate</span>
+              <span className="text-[10px] font-medium text-violet-600 dark:text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded">Videos only</span>
             </div>
             <div className="flex items-baseline gap-2">
               <span className="text-5xl font-bold tracking-tight" style={{ color: colorHex }}>
@@ -836,16 +839,16 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
       
       {/* Detailed Breakdown Sections - click to expand and see winners */}
       <div className="grid grid-cols-2 gap-6">
-        {/* Duration */}
+        {/* Duration (Video only) */}
         <div>
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Duration Breakdown</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Duration Breakdown <span className="text-xs font-normal text-slate-400">({videoWinners.length} videos)</span></h4>
           <div className="space-y-1">
             {Object.entries(durationGroups).map(([range, ws]) => (
-              <AnalyticsRow 
-                key={range} 
-                label={range} 
-                count={ws.length} 
-                total={winners.length} 
+              <AnalyticsRow
+                key={range}
+                label={range}
+                count={ws.length}
+                total={videoWinners.length}
                 colorHex={colorHex}
                 winners={ws}
                 brandColor={borderColor}
@@ -853,17 +856,17 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
             ))}
           </div>
         </div>
-        
-        {/* Execution */}
+
+        {/* Execution (Video only) */}
         <div>
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Execution Types</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Execution Types <span className="text-xs font-normal text-slate-400">({videoWinners.length} videos)</span></h4>
           <div className="space-y-1">
             {executionGroups.map(([exec, ws]) => (
-              <AnalyticsRow 
-                key={exec} 
-                label={exec} 
-                count={ws.length} 
-                total={winners.length} 
+              <AnalyticsRow
+                key={exec}
+                label={exec}
+                count={ws.length}
+                total={videoWinners.length}
                 colorHex={execColorHex[exec] || '#94a3b8'}
                 winners={ws}
                 brandColor={borderColor}
@@ -876,17 +879,17 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
             </p>
           )}
         </div>
-        
-        {/* Themes */}
+
+        {/* Themes (All winners) */}
         <div>
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Themes</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Themes <span className="text-xs font-normal text-slate-400">({winners.length} total)</span></h4>
           <div className="space-y-1">
             {themeGroups.slice(0, 8).map(([theme, ws]) => (
-              <AnalyticsRow 
-                key={theme} 
-                label={theme} 
-                count={ws.length} 
-                total={winners.length} 
+              <AnalyticsRow
+                key={theme}
+                label={theme}
+                count={ws.length}
+                total={winners.length}
                 colorHex={colorHex}
                 winners={ws}
                 brandColor={borderColor}
@@ -894,17 +897,17 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
             ))}
           </div>
         </div>
-        
-        {/* Caption Styles */}
+
+        {/* Caption Styles (Video only) */}
         <div>
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Caption Styles</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Caption Styles <span className="text-xs font-normal text-slate-400">({videoWinners.length} videos)</span></h4>
           <div className="space-y-1">
             {capsGroups.slice(0, 6).map(([caps, ws]) => (
-              <AnalyticsRow 
-                key={caps} 
-                label={caps} 
-                count={ws.length} 
-                total={winners.length} 
+              <AnalyticsRow
+                key={caps}
+                label={caps}
+                count={ws.length}
+                total={videoWinners.length}
                 colorHex={colorHex}
                 winners={ws}
                 brandColor={borderColor}
@@ -912,17 +915,17 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
             ))}
           </div>
         </div>
-        
-        {/* Mention Timing */}
+
+        {/* Mention Timing (Video only) */}
         <div>
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">First Mention Timing</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">First Mention Timing <span className="text-xs font-normal text-slate-400">({videoWinners.length} videos)</span></h4>
           <div className="space-y-1">
             {Object.entries(mentionGroups).map(([range, ws]) => (
-              <AnalyticsRow 
-                key={range} 
-                label={range} 
-                count={ws.length} 
-                total={winners.length} 
+              <AnalyticsRow
+                key={range}
+                label={range}
+                count={ws.length}
+                total={videoWinners.length}
                 colorHex={colorHex}
                 winners={ws}
                 brandColor={borderColor}
@@ -930,17 +933,17 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
             ))}
           </div>
         </div>
-        
-        {/* Music */}
+
+        {/* Music (Video only) */}
         <div>
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Music Genres</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 uppercase tracking-wide">Music Genres <span className="text-xs font-normal text-slate-400">({videoWinners.length} videos)</span></h4>
           <div className="space-y-1">
             {musicGroups.length > 0 ? musicGroups.slice(0, 6).map(([genre, ws]) => (
-              <AnalyticsRow 
-                key={genre} 
-                label={genre} 
-                count={ws.length} 
-                total={winners.length} 
+              <AnalyticsRow
+                key={genre}
+                label={genre}
+                count={ws.length}
+                total={videoWinners.length}
                 colorHex={colorHex}
                 winners={ws}
                 brandColor={borderColor}
@@ -957,31 +960,26 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
 
 // V2-style full comparison view (two-column layout with all breakdowns)
 function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: { kikoffWinners: Winner[]; grantWinners: Winner[]; allWinners: Winner[]; adTotals: MonthlyAdTotals[] }) {
-  // Calculate win rates for comparison view
+  // Get video winners for video-specific metrics
+  const kikoffVideoWinners = kikoffWinners.filter(w => w.type === 'Video');
+  const grantVideoWinners = grantWinners.filter(w => w.type === 'Video');
+  const allVideoWinners = allWinners.filter(w => w.type === 'Video');
+
+  // Calculate win rates for comparison view (Video only - no static ad totals)
   const winRates = useMemo(() => {
-    // Get unique months from winners, excluding July/August (incomplete ad data)
-    const months = [...new Set(allWinners.map(w => w.month))].filter(month => {
-      const monthLower = month.toLowerCase();
-      return !monthLower.includes('july') && !monthLower.includes('august');
-    });
+    // Get unique months from winners
+    const months = [...new Set(allWinners.map(w => w.month))];
 
-    // Only count winners from valid months
-    const validKikoffWinners = kikoffWinners.filter(w => {
-      const monthLower = w.month.toLowerCase();
-      return !monthLower.includes('july') && !monthLower.includes('august');
-    });
-    const validGrantWinners = grantWinners.filter(w => {
-      const monthLower = w.month.toLowerCase();
-      return !monthLower.includes('july') && !monthLower.includes('august');
-    });
-
-    let kikoffWins = validKikoffWinners.length;
-    let grantWins = validGrantWinners.length;
+    // Only count Video winners for win rate
+    let kikoffWins = kikoffVideoWinners.length;
+    let grantWins = grantVideoWinners.length;
     let kikoffAds = 0;
     let grantAds = 0;
 
     months.forEach(month => {
-      const adEntry = adTotals.find(a => a.month === month);
+      // Flexible month matching - try exact match, then month-only match
+      const monthOnly = month.split(' ')[0];
+      const adEntry = adTotals.find(a => a.month === month || a.month === monthOnly || a.month.split(' ')[0] === monthOnly);
       if (adEntry) {
         kikoffAds += adEntry.kikoffAds;
         grantAds += adEntry.grantAds;
@@ -1009,40 +1007,42 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   };
 
-  // Duration analysis
+  // Duration analysis (video only - static ads don't have duration)
   const analyzeDuration = (arr: Winner[]) => {
-    const durations = arr.map(w => parseInt(w.duration?.replace(/[^0-9]/g, '') || '0')).filter(d => d > 0);
-    if (durations.length === 0) return { avg: 0, min: 0, max: 0, ranges: {} as Record<string, number> };
-    
+    const videoWinners = arr.filter(w => w.type === 'Video');
+    const durations = videoWinners.map(w => parseInt(w.duration?.replace(/[^0-9]/g, '') || '0')).filter(d => d > 0);
+    if (durations.length === 0) return { avg: 0, min: 0, max: 0, ranges: {} as Record<string, number>, videoCount: 0 };
+
     const avg = Math.round(durations.reduce((a, b) => a + b, 0) / durations.length);
     const min = Math.min(...durations);
     const max = Math.max(...durations);
-    
+
     const ranges: Record<string, number> = {
       '0-8s (Short)': durations.filter(d => d <= 8).length,
       '9-15s (Medium)': durations.filter(d => d > 8 && d <= 15).length,
       '16-22s (Long)': durations.filter(d => d > 15 && d <= 22).length,
       '23s+ (Very Long)': durations.filter(d => d > 22).length,
     };
-    
-    return { avg, min, max, ranges };
+
+    return { avg, min, max, ranges, videoCount: videoWinners.length };
   };
 
-  // Mention timing analysis
+  // Mention timing analysis (video only - static ads don't have mentions)
   const analyzeMention = (arr: Winner[]) => {
-    const mentions = arr.map(w => parseInt(w.mention?.replace(/[^0-9]/g, '') || '0')).filter(m => m > 0);
-    if (mentions.length === 0) return { avg: 0, ranges: {} as Record<string, number> };
-    
+    const videoWinners = arr.filter(w => w.type === 'Video');
+    const mentions = videoWinners.map(w => parseInt(w.mention?.replace(/[^0-9]/g, '') || '0')).filter(m => m > 0);
+    if (mentions.length === 0) return { avg: 0, ranges: {} as Record<string, number>, videoCount: 0 };
+
     const avg = Math.round(mentions.reduce((a, b) => a + b, 0) / mentions.length);
-    
+
     const ranges: Record<string, number> = {
       '1-3s (Early)': mentions.filter(m => m <= 3).length,
       '4-6s (Mid)': mentions.filter(m => m > 3 && m <= 6).length,
       '7-9s (Late)': mentions.filter(m => m > 6 && m <= 9).length,
       '10s+ (Very Late)': mentions.filter(m => m > 9).length,
     };
-    
-    return { avg, ranges };
+
+    return { avg, ranges, videoCount: videoWinners.length };
   };
 
   // Theme counting using split tags
@@ -1057,10 +1057,10 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   };
 
-  // Music counting
+  // Music counting (video only - static ads don't have music)
   const countMusicGenres = (arr: Winner[]) => {
     const counts: Record<string, number> = {};
-    arr.forEach(w => {
+    arr.filter(w => w.type === 'Video').forEach(w => {
       const genres = normalizeMusic(w.music || '');
       genres.forEach(genre => {
         counts[genre] = (counts[genre] || 0) + 1;
@@ -1074,15 +1074,17 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
   const kikoffMention = analyzeMention(kikoffWinners);
   const grantMention = analyzeMention(grantWinners);
 
-  const kikoffExecution = countBy(kikoffWinners, 'execution', normalizeExecution);
-  const grantExecution = countBy(grantWinners, 'execution', normalizeExecution);
-  
-  // Count special UGC variants for notes
-  const kikoffSpecialUGC = kikoffWinners.filter(w => isSpecialUGC(w.execution || '')).length;
-  const grantSpecialUGC = grantWinners.filter(w => isSpecialUGC(w.execution || '')).length;
-  
-  const kikoffCapsData = countCapsWithSubsections(kikoffWinners);
-  const grantCapsData = countCapsWithSubsections(grantWinners);
+  // Execution (video only)
+  const kikoffExecution = countBy(kikoffVideoWinners, 'execution', normalizeExecution);
+  const grantExecution = countBy(grantVideoWinners, 'execution', normalizeExecution);
+
+  // Count special UGC variants for notes (video only)
+  const kikoffSpecialUGC = kikoffVideoWinners.filter(w => isSpecialUGC(w.execution || '')).length;
+  const grantSpecialUGC = grantVideoWinners.filter(w => isSpecialUGC(w.execution || '')).length;
+
+  // Caps (video only)
+  const kikoffCapsData = countCapsWithSubsections(kikoffVideoWinners);
+  const grantCapsData = countCapsWithSubsections(grantVideoWinners);
 
   const kikoffThemes = countThemeTags(kikoffWinners);
   const grantThemes = countThemeTags(grantWinners);
@@ -1090,8 +1092,9 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
   const kikoffMusic = countMusicGenres(kikoffWinners);
   const grantMusic = countMusicGenres(grantWinners);
 
-  const kikoffTextOverlay = countBy(kikoffWinners, 'textOverlay', normalizeTextOverlay);
-  const grantTextOverlay = countBy(grantWinners, 'textOverlay', normalizeTextOverlay);
+  // Text overlay (video only)
+  const kikoffTextOverlay = countBy(kikoffVideoWinners, 'textOverlay', normalizeTextOverlay);
+  const grantTextOverlay = countBy(grantVideoWinners, 'textOverlay', normalizeTextOverlay);
 
   return (
     <>
@@ -1103,9 +1106,13 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
         <StatCard label="Avg Duration" value={`${analyzeDuration(allWinners).avg}s`} color="slate" />
       </div>
 
-      {/* Win Rate Comparison - Hero Stats */}
+      {/* Win Rate Comparison - Hero Stats (Videos only) */}
       {(winRates.kikoffAds > 0 || winRates.grantAds > 0) && (
         <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-800 dark:via-slate-800 dark:to-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden">
+          <div className="px-4 pt-3 pb-1 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Win Rate</span>
+            <span className="text-[10px] font-medium text-violet-600 dark:text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded">Videos only</span>
+          </div>
           <div className="grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">
             {/* KIKOFF Win Rate */}
             <div className="p-5 text-center">
@@ -1165,29 +1172,29 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
             <img src="/kikoff-logo.png" alt="Kikoff" className="w-10 h-10 rounded-xl shadow-sm" />
             <div>
               <h3 className="text-lg font-bold text-[#00913a] dark:text-[#4ade80]">KIKOFF</h3>
-              <span className="text-xs text-slate-500 dark:text-slate-400">{kikoffWinners.length} winners</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{kikoffWinners.length} winners ({kikoffVideoWinners.length} videos)</span>
             </div>
           </div>
 
-          {/* Duration */}
+          {/* Duration (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Duration</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Duration <span className="font-normal">({kikoffVideoWinners.length} videos)</span></h4>
             <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">
               Avg: <span className="font-semibold text-slate-900 dark:text-white">{kikoffDuration.avg}s</span> (range: {kikoffDuration.min}s - {kikoffDuration.max}s)
             </div>
             <div className="space-y-1.5">
               {Object.entries(kikoffDuration.ranges).map(([range, count]) => (
-                <ExpandableRowV2 key={range} label={range} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
+                <ExpandableRowV2 key={range} label={range} count={count} total={kikoffVideoWinners.length} color="bg-[#00C853]" />
               ))}
             </div>
           </div>
 
-          {/* Execution */}
+          {/* Execution (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Execution Type</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Execution Type <span className="font-normal">({kikoffVideoWinners.length} videos)</span></h4>
             <div className="space-y-1.5">
               {kikoffExecution.slice(0, 5).map(([exec, count]) => (
-                <ExpandableRowV2 key={exec} label={exec} count={count} total={kikoffWinners.length} color={execColorClass[exec] || 'bg-slate-500'} />
+                <ExpandableRowV2 key={exec} label={exec} count={count} total={kikoffVideoWinners.length} color={execColorClass[exec] || 'bg-slate-500'} />
               ))}
             </div>
             {kikoffSpecialUGC > 0 && (
@@ -1197,29 +1204,29 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
             )}
           </div>
 
-          {/* Mention Timing */}
+          {/* Mention Timing (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">First Mention Timing</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">First Mention Timing <span className="font-normal">({kikoffVideoWinners.length} videos)</span></h4>
             <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">
               Avg: <span className="font-semibold text-slate-900 dark:text-white">{kikoffMention.avg}s</span>
             </div>
             <div className="space-y-1.5">
               {Object.entries(kikoffMention.ranges).map(([range, count]) => (
-                <ExpandableRowV2 key={range} label={range} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
+                <ExpandableRowV2 key={range} label={range} count={count} total={kikoffVideoWinners.length} color="bg-[#00C853]" />
               ))}
             </div>
           </div>
 
-          {/* Caps */}
+          {/* Caps (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Caption Styles</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Caption Styles <span className="font-normal">({kikoffVideoWinners.length} videos)</span></h4>
             <div className="space-y-1.5">
               {kikoffCapsData.main.slice(0, 6).map(([caps, count]) => (
-                <ExpandableRowV2 
-                  key={caps} 
-                  label={caps} 
-                  count={count} 
-                  total={kikoffWinners.length} 
+                <ExpandableRowV2
+                  key={caps}
+                  label={caps}
+                  count={count}
+                  total={kikoffVideoWinners.length}
                   color="bg-[#00C853]"
                   subsections={kikoffCapsData.subsections[caps]}
                 />
@@ -1227,9 +1234,9 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
             </div>
           </div>
 
-          {/* Themes */}
+          {/* Themes (All winners) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Top Themes</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Top Themes <span className="font-normal">({kikoffWinners.length} total)</span></h4>
             <div className="space-y-1.5">
               {kikoffThemes.slice(0, 8).map(([theme, count]) => (
                 <ExpandableRowV2 key={theme} label={theme} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
@@ -1237,24 +1244,24 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
             </div>
           </div>
 
-          {/* Music */}
+          {/* Music (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Music Genres</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Music Genres <span className="font-normal">({kikoffVideoWinners.length} videos)</span></h4>
             <div className="space-y-1.5">
               {kikoffMusic.length > 0 ? kikoffMusic.slice(0, 8).map(([genre, count]) => (
-                <ExpandableRowV2 key={genre} label={genre} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
+                <ExpandableRowV2 key={genre} label={genre} count={count} total={kikoffVideoWinners.length} color="bg-[#00C853]" />
               )) : (
                 <div className="text-sm text-slate-500 dark:text-slate-400">No music data</div>
               )}
             </div>
           </div>
 
-          {/* Text Overlay */}
+          {/* Text Overlay (Video only) */}
           <div>
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Text Overlay Styles</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Text Overlay Styles <span className="font-normal">({kikoffVideoWinners.length} videos)</span></h4>
             <div className="space-y-1.5">
               {kikoffTextOverlay.slice(0, 6).map(([overlay, count]) => (
-                <ExpandableRowV2 key={overlay} label={overlay} count={count} total={kikoffWinners.length} color="bg-[#00C853]" />
+                <ExpandableRowV2 key={overlay} label={overlay} count={count} total={kikoffVideoWinners.length} color="bg-[#00C853]" />
               ))}
             </div>
           </div>
@@ -1266,56 +1273,56 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
             <img src="/grant-logo.png" alt="Grant" className="w-10 h-10 rounded-xl shadow-sm" />
             <div>
               <h3 className="text-lg font-bold text-amber-600 dark:text-amber-400">GRANT</h3>
-              <span className="text-xs text-slate-500 dark:text-slate-400">{grantWinners.length} winners</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{grantWinners.length} winners ({grantVideoWinners.length} videos)</span>
             </div>
           </div>
 
-          {/* Duration */}
+          {/* Duration (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Duration</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Duration <span className="font-normal">({grantVideoWinners.length} videos)</span></h4>
             <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">
               Avg: <span className="font-semibold text-slate-900 dark:text-white">{grantDuration.avg}s</span> (range: {grantDuration.min}s - {grantDuration.max}s)
             </div>
             <div className="space-y-1.5">
               {Object.entries(grantDuration.ranges).map(([range, count]) => (
-                <ExpandableRowV2 key={range} label={range} count={count} total={grantWinners.length} color="bg-amber-500" />
+                <ExpandableRowV2 key={range} label={range} count={count} total={grantVideoWinners.length} color="bg-amber-500" />
               ))}
             </div>
           </div>
 
-          {/* Execution */}
+          {/* Execution (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Execution Type</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Execution Type <span className="font-normal">({grantVideoWinners.length} videos)</span></h4>
             <div className="space-y-1.5">
               {grantExecution.slice(0, 5).map(([exec, count]) => (
-                <ExpandableRowV2 key={exec} label={exec} count={count} total={grantWinners.length} color={execColorClass[exec] || 'bg-slate-500'} />
+                <ExpandableRowV2 key={exec} label={exec} count={count} total={grantVideoWinners.length} color={execColorClass[exec] || 'bg-slate-500'} />
               ))}
             </div>
           </div>
 
-          {/* Mention Timing */}
+          {/* Mention Timing (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">First Mention Timing</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">First Mention Timing <span className="font-normal">({grantVideoWinners.length} videos)</span></h4>
             <div className="text-sm text-slate-600 dark:text-slate-400 mb-2">
               Avg: <span className="font-semibold text-slate-900 dark:text-white">{grantMention.avg}s</span>
             </div>
             <div className="space-y-1.5">
               {Object.entries(grantMention.ranges).map(([range, count]) => (
-                <ExpandableRowV2 key={range} label={range} count={count} total={grantWinners.length} color="bg-amber-500" />
+                <ExpandableRowV2 key={range} label={range} count={count} total={grantVideoWinners.length} color="bg-amber-500" />
               ))}
             </div>
           </div>
 
-          {/* Caps */}
+          {/* Caps (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Caption Styles</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Caption Styles <span className="font-normal">({grantVideoWinners.length} videos)</span></h4>
             <div className="space-y-1.5">
               {grantCapsData.main.slice(0, 6).map(([caps, count]) => (
-                <ExpandableRowV2 
-                  key={caps} 
-                  label={caps} 
-                  count={count} 
-                  total={grantWinners.length} 
+                <ExpandableRowV2
+                  key={caps}
+                  label={caps}
+                  count={count}
+                  total={grantVideoWinners.length}
                   color="bg-amber-500"
                   subsections={grantCapsData.subsections[caps]}
                 />
@@ -1323,9 +1330,9 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
             </div>
           </div>
 
-          {/* Themes */}
+          {/* Themes (All winners) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Top Themes</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Top Themes <span className="font-normal">({grantWinners.length} total)</span></h4>
             <div className="space-y-1.5">
               {grantThemes.slice(0, 8).map(([theme, count]) => (
                 <ExpandableRowV2 key={theme} label={theme} count={count} total={grantWinners.length} color="bg-amber-500" />
@@ -1333,24 +1340,24 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
             </div>
           </div>
 
-          {/* Music */}
+          {/* Music (Video only) */}
           <div className="mb-5">
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Music Genres</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Music Genres <span className="font-normal">({grantVideoWinners.length} videos)</span></h4>
             <div className="space-y-1.5">
               {grantMusic.length > 0 ? grantMusic.slice(0, 8).map(([genre, count]) => (
-                <ExpandableRowV2 key={genre} label={genre} count={count} total={grantWinners.length} color="bg-amber-500" />
+                <ExpandableRowV2 key={genre} label={genre} count={count} total={grantVideoWinners.length} color="bg-amber-500" />
               )) : (
                 <div className="text-sm text-slate-500 dark:text-slate-400">No music data</div>
               )}
             </div>
           </div>
 
-          {/* Text Overlay */}
+          {/* Text Overlay (Video only) */}
           <div>
-            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Text Overlay Styles</h4>
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Text Overlay Styles <span className="font-normal">({grantVideoWinners.length} videos)</span></h4>
             <div className="space-y-1.5">
               {grantTextOverlay.slice(0, 6).map(([overlay, count]) => (
-                <ExpandableRowV2 key={overlay} label={overlay} count={count} total={grantWinners.length} color="bg-amber-500" />
+                <ExpandableRowV2 key={overlay} label={overlay} count={count} total={grantVideoWinners.length} color="bg-amber-500" />
               ))}
             </div>
           </div>
@@ -1361,12 +1368,12 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
       <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200 dark:border-amber-800 p-5">
         <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200 uppercase tracking-wide mb-3">Key Insights</h3>
         <ul className="space-y-2 text-sm text-amber-700 dark:text-amber-300">
-          <li>• <strong>KIKOFF</strong> winners avg <strong>{kikoffDuration.avg}s</strong> duration vs GRANT at <strong>{grantDuration.avg}s</strong></li>
-          <li>• <strong>KIKOFF</strong> top execution: <strong>{kikoffExecution[0]?.[0] || 'N/A'}</strong> ({kikoffExecution[0]?.[1] || 0}/{kikoffWinners.length})</li>
-          <li>• <strong>GRANT</strong> top execution: <strong>{grantExecution[0]?.[0] || 'N/A'}</strong> ({grantExecution[0]?.[1] || 0}/{grantWinners.length})</li>
+          <li>• <strong>KIKOFF</strong> videos avg <strong>{kikoffDuration.avg}s</strong> duration vs GRANT at <strong>{grantDuration.avg}s</strong></li>
+          <li>• <strong>KIKOFF</strong> top execution: <strong>{kikoffExecution[0]?.[0] || 'N/A'}</strong> ({kikoffExecution[0]?.[1] || 0}/{kikoffVideoWinners.length} videos)</li>
+          <li>• <strong>GRANT</strong> top execution: <strong>{grantExecution[0]?.[0] || 'N/A'}</strong> ({grantExecution[0]?.[1] || 0}/{grantVideoWinners.length} videos)</li>
           <li>• <strong>KIKOFF</strong> avg first mention at <strong>{kikoffMention.avg}s</strong> vs GRANT at <strong>{grantMention.avg}s</strong></li>
-          <li>• <strong>KIKOFF</strong> top theme: <strong>{kikoffThemes[0]?.[0] || 'N/A'}</strong> ({kikoffThemes[0]?.[1] || 0}/{kikoffWinners.length})</li>
-          <li>• <strong>GRANT</strong> top theme: <strong>{grantThemes[0]?.[0] || 'N/A'}</strong> ({grantThemes[0]?.[1] || 0}/{grantWinners.length})</li>
+          <li>• <strong>KIKOFF</strong> top theme: <strong>{kikoffThemes[0]?.[0] || 'N/A'}</strong> ({kikoffThemes[0]?.[1] || 0}/{kikoffWinners.length} total)</li>
+          <li>• <strong>GRANT</strong> top theme: <strong>{grantThemes[0]?.[0] || 'N/A'}</strong> ({grantThemes[0]?.[1] || 0}/{grantWinners.length} total)</li>
         </ul>
       </div>
     </>

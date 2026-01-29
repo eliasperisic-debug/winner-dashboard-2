@@ -88,6 +88,10 @@ export interface MonthlyStats {
   total: number;
   kikoff: number;
   grant: number;
+  // Video-only counts for win rate calculations
+  kikoffVideos: number;
+  grantVideos: number;
+  totalVideos: number;
   avgDuration: number;
   avgDurationKikoff: number;
   avgDurationGrant: number;
@@ -152,6 +156,11 @@ export function calculateMonthlyStats(winners: Winner[]): MonthlyStats[] {
       return counts;
     };
     
+    // Video-only counts for win rate
+    const kikoffVideoWinners = kikoffWinners.filter(w => w.type === 'Video');
+    const grantVideoWinners = grantWinners.filter(w => w.type === 'Video');
+    const allVideoWinners = monthWinners.filter(w => w.type === 'Video');
+
     return {
       month,
       shortMonth: getShortMonth(month),
@@ -159,6 +168,9 @@ export function calculateMonthlyStats(winners: Winner[]): MonthlyStats[] {
       total: monthWinners.length,
       kikoff: kikoffWinners.length,
       grant: grantWinners.length,
+      kikoffVideos: kikoffVideoWinners.length,
+      grantVideos: grantVideoWinners.length,
+      totalVideos: allVideoWinners.length,
       avgDuration: avgDur(allDurations),
       avgDurationKikoff: avgDur(kikoffDurations),
       avgDurationGrant: avgDur(grantDurations),

@@ -1,6 +1,7 @@
 export interface Winner {
   month: string;
   brand: 'KIKOFF' | 'GRANT';
+  type: 'Video' | 'Static';
   ticket: string;
   theme: string;
   variant: string;

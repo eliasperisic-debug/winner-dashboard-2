@@ -28,11 +28,11 @@ const sheets = google.sheets({ version: 'v4', auth });
 export async function getWinners(): Promise<Winner[]> {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-    range: 'Sheet1!A2:P', // Skip header row, include VIDEO_URL column
+    range: 'Sheet1!A2:Q', // Skip header row, include VIDEO_URL and TYPE columns
   });
 
   const rows = response.data.values || [];
-  
+
   // Filter out header rows and empty rows
   const dataRows = rows.filter(row => {
     const month = row[0] || '';
@@ -40,10 +40,11 @@ export async function getWinners(): Promise<Winner[]> {
     // Skip if month is "MONTH" (header) or empty, or brand is "BRAND" or empty
     return month && month !== 'MONTH' && brand && brand !== 'BRAND';
   });
-  
+
   return dataRows.map((row): Winner => ({
     month: row[0] || '',
     brand: row[1] as 'KIKOFF' | 'GRANT',
+    type: (row[16] as 'Video' | 'Static') || 'Video',
     ticket: row[2] || '',
     theme: row[3] || '',
     variant: row[4] || '',
@@ -72,11 +73,11 @@ export interface MonthlyAdTotals {
 export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-    range: 'Win Rate Data!A2:D5', // Skip header, get 4 months of data
+    range: 'Win Rate Data!A2:D20', // Skip header, get all months of data
   });
 
   const rows = response.data.values || [];
-  
+
   return rows
     .filter(row => row[0] && row[0] !== 'MONTH' && !row[0].includes('Grand'))
     .map((row): MonthlyAdTotals => ({
