@@ -545,11 +545,21 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
     if (d <= 8) return '0-8s (Short)';
     if (d <= 15) return '9-15s (Medium)';
     if (d <= 22) return '16-22s (Long)';
+    if (brand === 'KIKOFF') {
+      if (d <= 30) return '23-30s (Long+)';
+      return '30s+ (Very Long)';
+    }
     return '23s+ (Very Long)';
   };
-  
+
   const durationGroups = useMemo(() => {
-    const groups: Record<string, Winner[]> = {
+    const groups: Record<string, Winner[]> = brand === 'KIKOFF' ? {
+      '0-8s (Short)': [],
+      '9-15s (Medium)': [],
+      '16-22s (Long)': [],
+      '23-30s (Long+)': [],
+      '30s+ (Very Long)': [],
+    } : {
       '0-8s (Short)': [],
       '9-15s (Medium)': [],
       '16-22s (Long)': [],
@@ -561,7 +571,7 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
       if (d > 0) groups[getDurationRange(d)].push(w);
     });
     return groups;
-  }, [winners]);
+  }, [winners, brand]);
   
   // Only include video winners for duration analysis (static ads don't have duration)
   const videoWinners = winners.filter(w => w.type === 'Video');
@@ -1008,7 +1018,7 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
   };
 
   // Duration analysis (video only - static ads don't have duration)
-  const analyzeDuration = (arr: Winner[]) => {
+  const analyzeDuration = (arr: Winner[], isKikoff: boolean = false) => {
     const videoWinners = arr.filter(w => w.type === 'Video');
     const durations = videoWinners.map(w => parseInt(w.duration?.replace(/[^0-9]/g, '') || '0')).filter(d => d > 0);
     if (durations.length === 0) return { avg: 0, min: 0, max: 0, ranges: {} as Record<string, number>, videoCount: 0 };
@@ -1017,7 +1027,13 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
     const min = Math.min(...durations);
     const max = Math.max(...durations);
 
-    const ranges: Record<string, number> = {
+    const ranges: Record<string, number> = isKikoff ? {
+      '0-8s (Short)': durations.filter(d => d <= 8).length,
+      '9-15s (Medium)': durations.filter(d => d > 8 && d <= 15).length,
+      '16-22s (Long)': durations.filter(d => d > 15 && d <= 22).length,
+      '23-30s (Long+)': durations.filter(d => d > 22 && d <= 30).length,
+      '30s+ (Very Long)': durations.filter(d => d > 30).length,
+    } : {
       '0-8s (Short)': durations.filter(d => d <= 8).length,
       '9-15s (Medium)': durations.filter(d => d > 8 && d <= 15).length,
       '16-22s (Long)': durations.filter(d => d > 15 && d <= 22).length,
@@ -1069,8 +1085,8 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   };
 
-  const kikoffDuration = analyzeDuration(kikoffWinners);
-  const grantDuration = analyzeDuration(grantWinners);
+  const kikoffDuration = analyzeDuration(kikoffWinners, true);
+  const grantDuration = analyzeDuration(grantWinners, false);
   const kikoffMention = analyzeMention(kikoffWinners);
   const grantMention = analyzeMention(grantWinners);
 
