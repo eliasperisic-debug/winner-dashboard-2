@@ -97,15 +97,19 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
   // Track locally updated themes (optimistic updates)
   const [updatedThemes, setUpdatedThemes] = useState<Record<string, string>>({});
 
-  // Pinned tickets state with localStorage persistence
-  const [pinnedTickets, setPinnedTickets] = useState<Set<string>>(new Set());
+  // Pinned winners state with localStorage persistence
+  // Use unique ID: ticket + variant to distinguish between variants
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [pinnedLoaded, setPinnedLoaded] = useState(false);
+
+  // Helper to create unique ID for a winner
+  const getWinnerId = (winner: Winner) => `${winner.ticket}::${winner.variant || 'default'}`;
 
   // Load from localStorage on mount (client-side only)
   useEffect(() => {
     const saved = localStorage.getItem('pinnedWinners');
     if (saved) {
-      setPinnedTickets(new Set(JSON.parse(saved)));
+      setPinnedIds(new Set(JSON.parse(saved)));
     }
     setPinnedLoaded(true);
   }, []);
@@ -113,18 +117,19 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
   // Save to localStorage when pins change (only after initial load)
   useEffect(() => {
     if (pinnedLoaded) {
-      localStorage.setItem('pinnedWinners', JSON.stringify([...pinnedTickets]));
+      localStorage.setItem('pinnedWinners', JSON.stringify([...pinnedIds]));
     }
-  }, [pinnedTickets, pinnedLoaded]);
+  }, [pinnedIds, pinnedLoaded]);
 
   // Toggle pin function
-  const togglePin = (ticket: string) => {
-    setPinnedTickets(prev => {
+  const togglePin = (winner: Winner) => {
+    const id = getWinnerId(winner);
+    setPinnedIds(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(ticket)) {
-        newSet.delete(ticket);
+      if (newSet.has(id)) {
+        newSet.delete(id);
       } else {
-        newSet.add(ticket);
+        newSet.add(id);
       }
       return newSet;
     });
@@ -132,7 +137,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
 
   // Clear all pins
   const clearPins = () => {
-    setPinnedTickets(new Set());
+    setPinnedIds(new Set());
     setShowPinAnalysis(false);
   };
 
@@ -146,8 +151,8 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
 
   // Get pinned winners (always visible, regardless of filters)
   const pinnedWinners = useMemo(() => {
-    return winners.filter(winner => pinnedTickets.has(winner.ticket));
-  }, [winners, pinnedTickets]);
+    return winners.filter(winner => pinnedIds.has(getWinnerId(winner)));
+  }, [winners, pinnedIds]);
 
   // Compute pin analysis data
   const pinAnalysis = useMemo(() => {
@@ -191,12 +196,9 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
     return { total, kikoff, grant, executions, durations, themes, months };
   }, [pinnedWinners]);
 
-  // Filter winners (excluding pinned ones which are shown separately)
+  // Filter winners (apply search/filters but keep all items)
   const filteredWinners = useMemo(() => {
     return winners.filter(winner => {
-      // Exclude pinned items from normal filtered list
-      if (pinnedTickets.has(winner.ticket)) return false;
-
       // Use updated theme if available, otherwise use original
       const currentTheme = updatedThemes[winner.ticket] ?? winner.theme;
 
@@ -221,27 +223,26 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
 
       return matchesSearch && matchesBrand && matchesMonth && matchesExecution && matchesTheme;
     });
-  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter, updatedThemes, pinnedTickets]);
+  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter, updatedThemes]);
 
-  // What to display:
-  // 1. Search active → show ONLY search results (to find items to pin)
-  // 2. No search, have pins → show ONLY pinned items
-  // 3. No search, no pins → show all items
-  const displayMode = search !== '' ? 'search' : (pinnedWinners.length > 0 ? 'pinned' : 'all');
+  // Separate pinned from non-pinned filtered winners
+  const pinnedFilteredWinners = useMemo(() => {
+    return filteredWinners.filter(w => pinnedIds.has(getWinnerId(w)));
+  }, [filteredWinners, pinnedIds]);
 
-  const displayWinners = displayMode === 'search'
-    ? filteredWinners
-    : (displayMode === 'pinned' ? pinnedWinners : filteredWinners);
+  const nonPinnedFilteredWinners = useMemo(() => {
+    return filteredWinners.filter(w => !pinnedIds.has(getWinnerId(w)));
+  }, [filteredWinners, pinnedIds]);
 
-  // Stats (based on displayed winners: pinned + filtered)
+  // Stats (based on all filtered winners)
   const stats = useMemo(() => {
-    const total = displayWinners.length;
-    const kikoff = displayWinners.filter(w => w.brand === 'KIKOFF').length;
-    const grant = displayWinners.filter(w => w.brand === 'GRANT').length;
-    const aiCount = displayWinners.filter(w => w.execution === 'AI').length;
-    const ugcCount = displayWinners.filter(w => w.execution === 'UGC' || w.execution === '*UGC*').length;
+    const total = filteredWinners.length;
+    const kikoff = filteredWinners.filter(w => w.brand === 'KIKOFF').length;
+    const grant = filteredWinners.filter(w => w.brand === 'GRANT').length;
+    const aiCount = filteredWinners.filter(w => w.execution === 'AI').length;
+    const ugcCount = filteredWinners.filter(w => w.execution === 'UGC' || w.execution === '*UGC*').length;
     return { total, kikoff, grant, aiCount, ugcCount };
-  }, [displayWinners]);
+  }, [filteredWinners]);
 
   return (
     <div className="space-y-4">
@@ -324,7 +325,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
               <option key={tag} value={tag}>{tag}</option>
             ))}
           </select>
-          {pinnedTickets.size > 0 && (
+          {pinnedIds.size > 0 && (
             <>
               <button
                 onClick={() => setShowPinAnalysis(!showPinAnalysis)}
@@ -346,7 +347,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/>
                 </svg>
-                Clear Pins ({pinnedTickets.size})
+                Clear Pins ({pinnedIds.size})
               </button>
             </>
           )}
@@ -508,40 +509,43 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                 <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Music</th>
               </tr>
             </thead>
-            <tbody key={`tbody-${displayMode}-${search}-${displayWinners.length}`} className="divide-y divide-slate-100 dark:divide-slate-700/50">
-              {/* Section header based on display mode */}
-              {displayMode === 'pinned' && (
+            <tbody key={`tbody-${search}-${filteredWinners.length}-${pinnedIds.size}`} className="divide-y divide-slate-100 dark:divide-slate-700/50">
+              {/* Search results header */}
+              {search !== '' && (
+                <tr className="bg-blue-50/50 dark:bg-blue-900/10">
+                  <td colSpan={12} className="px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider">
+                    Search Results for "{search}" ({filteredWinners.length})
+                  </td>
+                </tr>
+              )}
+
+              {/* Pinned section header (if any pinned in current filter) */}
+              {pinnedFilteredWinners.length > 0 && (
                 <tr className="bg-amber-50/50 dark:bg-amber-900/10">
                   <td colSpan={12} className="px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
                     <div className="flex items-center gap-1.5">
                       <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/>
                       </svg>
-                      Pinned ({pinnedWinners.length})
+                      Pinned ({pinnedFilteredWinners.length})
                     </div>
                   </td>
                 </tr>
               )}
-              {displayMode === 'search' && (
-                <tr className="bg-blue-50/50 dark:bg-blue-900/10">
-                  <td colSpan={12} className="px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider">
-                    Search Results for "{search}" ({displayWinners.length})
-                  </td>
-                </tr>
-              )}
 
-              {/* Single loop through displayWinners */}
-              {displayWinners.map((winner, idx) => {
-                const isPinned = pinnedTickets.has(winner.ticket);
+              {/* Pinned winners first */}
+              {pinnedFilteredWinners.map((winner) => {
+                const isPinned = true;
+                const winnerId = getWinnerId(winner);
                 return (
-                  <Fragment key={winner.ticket}>
+                  <Fragment key={winnerId}>
                     <tr
                       className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors ${
-                        expandedRow === winner.ticket ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                        expandedRow === winnerId ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                       } ${
                         isPinned ? 'bg-amber-50/30 dark:bg-amber-900/5 border-l-2 border-l-amber-400 dark:border-l-amber-500' : ''
                       }`}
-                      onClick={() => setExpandedRow(expandedRow === winner.ticket ? null : winner.ticket)}
+                      onClick={() => setExpandedRow(expandedRow === winnerId ? null : winnerId)}
                     >
                       <td className="px-2 py-2 whitespace-nowrap">
                         <MonthChip month={winner.month} />
@@ -557,7 +561,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              togglePin(winner.ticket);
+                              togglePin(winner);
                             }}
                             className={`flex-shrink-0 p-0.5 rounded transition-colors ${
                               isPinned
@@ -611,7 +615,161 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                         <MusicChips music={winner.music} />
                       </td>
                     </tr>
-                    {expandedRow === winner.ticket && (
+                    {expandedRow === winnerId && (
+                      <tr className="bg-slate-50/80 dark:bg-slate-900/30">
+                        <td colSpan={12} className="px-4 py-4">
+                          <div className="flex flex-col lg:flex-row gap-4">
+                            {winner.videoUrl && extractGoogleDriveId(winner.videoUrl) ? (
+                              <div className="lg:w-72 flex-shrink-0">
+                                <div className="bg-black rounded-lg overflow-hidden" style={{ aspectRatio: '1/1' }}>
+                                  <iframe
+                                    src={`https://drive.google.com/file/d/${extractGoogleDriveId(winner.videoUrl)}/preview`}
+                                    className="w-full h-full"
+                                    allow="autoplay; encrypted-media"
+                                    allowFullScreen
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="lg:w-72 flex-shrink-0">
+                                <div className="bg-slate-200 dark:bg-slate-700 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500" style={{ aspectRatio: '1/1' }}>
+                                  <div className="text-center p-4">
+                                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    <p className="text-xs">No video</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Full Ticket</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.ticket || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Test Differentiators</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.testDifferentiators || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Text Overlay Style</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.textOverlay || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Caps Style (Full)</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.caps || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Product Overlay (Full)</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.productOverlay || '-'}</p>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="font-semibold text-slate-600 dark:text-slate-300 text-xs uppercase tracking-wide block mb-1.5">Music</span>
+                                <p className="text-slate-700 dark:text-slate-300 text-sm break-words">{winner.music || '-'}</p>
+                              </div>
+                              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-700/50 shadow-sm sm:col-span-2">
+                                <span className="font-semibold text-amber-700 dark:text-amber-300 text-xs uppercase tracking-wide block mb-1.5">Notes</span>
+                                <p className="text-amber-800 dark:text-amber-200 text-sm break-words">{winner.notes || 'No notes available'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+
+              {/* All other winners section header */}
+              {pinnedFilteredWinners.length > 0 && nonPinnedFilteredWinners.length > 0 && (
+                <tr className="bg-slate-100/50 dark:bg-slate-900/30">
+                  <td colSpan={12} className="px-3 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    All Winners ({nonPinnedFilteredWinners.length})
+                  </td>
+                </tr>
+              )}
+
+              {/* Non-pinned winners */}
+              {nonPinnedFilteredWinners.map((winner) => {
+                const isPinned = false;
+                const winnerId = getWinnerId(winner);
+                return (
+                  <Fragment key={winnerId}>
+                    <tr
+                      className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer transition-colors ${
+                        expandedRow === winnerId ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                      }`}
+                      onClick={() => setExpandedRow(expandedRow === winnerId ? null : winnerId)}
+                    >
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <MonthChip month={winner.month} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <BrandChip brand={winner.brand} />
+                      </td>
+                      <td className="px-1.5 py-2 whitespace-nowrap">
+                        <TypeChip type={winner.type} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePin(winner);
+                            }}
+                            className={`flex-shrink-0 p-0.5 rounded transition-colors ${
+                              isPinned
+                                ? 'text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300'
+                                : 'text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400'
+                            }`}
+                            title={isPinned ? 'Unpin' : 'Pin for comparison'}
+                          >
+                            <svg className="w-4 h-4" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={isPinned ? 0 : 2} viewBox="0 0 24 24">
+                              <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z"/>
+                            </svg>
+                          </button>
+                          {winner.videoUrl && (
+                            <span className="text-blue-500 dark:text-blue-400 flex-shrink-0" title="Video available">
+                              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z"/>
+                              </svg>
+                            </span>
+                          )}
+                          <div className="text-sm text-slate-700 dark:text-slate-200 font-medium">
+                            {winner.ticket}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                        <ThemeSelector
+                          ticket={winner.ticket}
+                          currentTheme={updatedThemes[winner.ticket] ?? winner.theme}
+                          onUpdate={(newTheme) => setUpdatedThemes(prev => ({ ...prev, [winner.ticket]: newTheme }))}
+                        />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <VariantChip variant={winner.variant} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <DurationChip duration={winner.duration} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <MentionChip mention={winner.mention} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <ExecutionChip execution={winner.execution} />
+                      </td>
+                      <td className="px-2 py-2 whitespace-nowrap">
+                        <CapsChip caps={winner.caps} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <ProductOverlayChips overlay={winner.productOverlay} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <MusicChips music={winner.music} />
+                      </td>
+                    </tr>
+                    {expandedRow === winnerId && (
                       <tr className="bg-slate-50/80 dark:bg-slate-900/30">
                         <td colSpan={12} className="px-4 py-4">
                           <div className="flex flex-col lg:flex-row gap-4">
