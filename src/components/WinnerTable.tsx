@@ -16,6 +16,7 @@ import {
   ProductOverlayChips,
 } from './Chips';
 import { ThemeSelector } from './ThemeSelector';
+import { sortMonths } from '@/lib/trendUtils';
 
 // Extract Google Drive file ID from various URL formats
 function extractGoogleDriveId(url: string): string | null {
@@ -145,7 +146,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
   const [showPinAnalysis, setShowPinAnalysis] = useState(false);
 
   // Get unique values for filters
-  const months = useMemo(() => [...new Set(winners.map(w => w.month))].sort(), [winners]);
+  const months = useMemo(() => sortMonths([...new Set(winners.map(w => w.month))]), [winners]);
   const executions = useMemo(() => [...new Set(winners.map(w => w.execution))], [winners]);
   const themeTags = useMemo(() => getAllThemeTags(winners), [winners]);
 

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { Winner } from '@/types/winner';
 import { MonthlyAdTotals } from '@/lib/sheets';
+import { sortMonths, sortQuarters } from '@/lib/trendUtils';
 
 interface AnalyticsProps {
   winners: Winner[];
@@ -1401,10 +1402,10 @@ export function Analytics({ winners, adTotals }: AnalyticsProps) {
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [themeFilter, setThemeFilter] = useState<string>('all');
   
-  const months = useMemo(() => [...new Set(winners.map(w => w.month))].sort(), [winners]);
+  const months = useMemo(() => sortMonths([...new Set(winners.map(w => w.month))]), [winners]);
   const quarters = useMemo(() => {
     const quarterSet = new Set(winners.map(w => getQuarter(w.month)));
-    return [...quarterSet].sort().reverse();
+    return sortQuarters([...quarterSet]).reverse(); // Newest first
   }, [winners]);
   const allThemeTags = useMemo(() => getAllThemeTags(winners), [winners]);
 

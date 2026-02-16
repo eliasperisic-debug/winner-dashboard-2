@@ -1,11 +1,20 @@
 import { Winner } from '@/types/winner';
 
-// Month order for sorting (July 2025 onwards)
-const MONTH_ORDER = [
-  'July 2025', 'August 2025', 'September 2025', 'October 2025', 
-  'November 2025', 'December 2025', 'January 2026', 'February 2026',
-  'March 2026', 'April 2026', 'May 2026', 'June 2026'
-];
+// Month name to number mapping for chronological sorting
+const MONTH_TO_NUM: Record<string, number> = {
+  'january': 1, 'february': 2, 'march': 3, 'april': 4,
+  'may': 5, 'june': 6, 'july': 7, 'august': 8,
+  'september': 9, 'october': 10, 'november': 11, 'december': 12
+};
+
+// Parse month string to sortable value (e.g., "August 2025" -> 202508)
+function parseMonthToSortValue(month: string): number {
+  const parts = month.toLowerCase().split(' ');
+  const monthName = parts[0];
+  const year = parseInt(parts[1] || '2025', 10);
+  const monthNum = MONTH_TO_NUM[monthName] || 1;
+  return year * 100 + monthNum;
+}
 
 // Get quarter for a month
 export function getQuarter(month: string): string {
@@ -26,16 +35,26 @@ export function getShortMonth(month: string): string {
   return `${monthName} '${year}`;
 }
 
-// Sort months chronologically
+// Sort months chronologically (e.g., "July 2025" before "August 2025" before "January 2026")
 export function sortMonths(months: string[]): string[] {
-  return months.sort((a, b) => {
-    const idxA = MONTH_ORDER.indexOf(a);
-    const idxB = MONTH_ORDER.indexOf(b);
-    // If not in predefined order, sort alphabetically
-    if (idxA === -1 && idxB === -1) return a.localeCompare(b);
-    if (idxA === -1) return 1;
-    if (idxB === -1) return -1;
-    return idxA - idxB;
+  return [...months].sort((a, b) => {
+    return parseMonthToSortValue(a) - parseMonthToSortValue(b);
+  });
+}
+
+// Parse quarter string to sortable value (e.g., "Q3 2025" -> 202503)
+function parseQuarterToSortValue(quarter: string): number {
+  const match = quarter.match(/Q(\d)\s+(\d{4})/);
+  if (!match) return 0;
+  const q = parseInt(match[1], 10);
+  const year = parseInt(match[2], 10);
+  return year * 10 + q;
+}
+
+// Sort quarters chronologically (e.g., "Q3 2025" before "Q4 2025" before "Q1 2026")
+export function sortQuarters(quarters: string[]): string[] {
+  return [...quarters].sort((a, b) => {
+    return parseQuarterToSortValue(a) - parseQuarterToSortValue(b);
   });
 }
 

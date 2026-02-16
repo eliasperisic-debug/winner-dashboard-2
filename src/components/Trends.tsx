@@ -146,16 +146,28 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
   const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
   const [showThemeCustomizer, setShowThemeCustomizer] = useState(false);
   const [hoveredTheme, setHoveredTheme] = useState<string | null>(null);
-  
+
+  // Handler to change brand filter and reset theme selection
+  const handleBrandChange = (brand: BrandFilter) => {
+    setBrandFilter(brand);
+    setSelectedThemes([]); // Reset to show top 4 themes for new brand
+  };
+
   // Calculate monthly stats
   const monthlyStats = useMemo(() => calculateMonthlyStats(winners), [winners]);
-  
-  // Get top themes for default view
-  const topThemes = useMemo(() => getTopThemes(winners, 5), [winners]);
-  const allThemes = useMemo(() => getAllThemes(winners), [winners]);
+
+  // Filter winners by brand for brand-specific top themes
+  const filteredWinners = useMemo(() => {
+    if (brandFilter === 'all') return winners;
+    return winners.filter(w => w.brand === brandFilter);
+  }, [winners, brandFilter]);
+
+  // Get top 4 themes for default view (brand-specific)
+  const topThemes = useMemo(() => getTopThemes(filteredWinners, 4), [filteredWinners]);
+  const allThemes = useMemo(() => getAllThemes(filteredWinners), [filteredWinners]);
   const allExecutions = useMemo(() => getAllExecutions(winners), [winners]);
-  
-  // Active themes (user selected or top 5)
+
+  // Active themes (user selected or top 4 for current brand)
   const activeThemes = selectedThemes.length > 0 ? selectedThemes : topThemes;
   
   // Generate insights
@@ -478,7 +490,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowThemeCustomizer(false)}>
       <div className="bg-white dark:bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">Customize Theme Trends</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Select up to 5 themes to track:</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Select up to 4 themes to track:</p>
         <div className="space-y-2 mb-6">
           {allThemes.map(theme => (
             <label key={theme} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 p-2 rounded-lg">
@@ -490,7 +502,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                     if (selectedThemes.length === 0) {
                       // First selection - start fresh
                       setSelectedThemes([theme]);
-                    } else if (selectedThemes.length < 5) {
+                    } else if (selectedThemes.length < 4) {
                       setSelectedThemes([...selectedThemes, theme]);
                     }
                   } else {
@@ -502,7 +514,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                     }
                   }
                 }}
-                disabled={!selectedThemes.includes(theme) && selectedThemes.length >= 5 && selectedThemes.length > 0}
+                disabled={!selectedThemes.includes(theme) && selectedThemes.length >= 4 && selectedThemes.length > 0}
                 className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500"
               />
               <span className="text-sm text-slate-700 dark:text-slate-300">{theme}</span>
@@ -517,7 +529,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
             }}
             className="flex-1 px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
           >
-            Reset to Top 5
+            Reset to Top 4
           </button>
           <button
             onClick={() => setShowThemeCustomizer(false)}
@@ -567,7 +579,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
           {/* Brand Filter */}
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
             <button
-              onClick={() => setBrandFilter('all')}
+              onClick={() => handleBrandChange('all')}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                 brandFilter === 'all'
                   ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-white shadow-sm'
@@ -577,7 +589,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
               All Brands
             </button>
             <button
-              onClick={() => setBrandFilter('KIKOFF')}
+              onClick={() => handleBrandChange('KIKOFF')}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
                 brandFilter === 'KIKOFF'
                   ? 'bg-white dark:bg-slate-600 text-[#00913a] dark:text-[#4ade80] shadow-sm'
@@ -588,7 +600,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
               KIKOFF
             </button>
             <button
-              onClick={() => setBrandFilter('GRANT')}
+              onClick={() => handleBrandChange('GRANT')}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
                 brandFilter === 'GRANT'
                   ? 'bg-white dark:bg-slate-600 text-amber-600 dark:text-amber-400 shadow-sm'
@@ -1076,7 +1088,7 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
                 onClick={() => setSelectedThemes([])}
                 className="w-full mt-2 px-2 py-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
               >
-                Reset to Top 5
+                Reset to Top 4
               </button>
             )}
           </div>
