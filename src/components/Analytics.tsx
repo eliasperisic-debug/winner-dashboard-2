@@ -781,18 +781,19 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
                             {month.split(' ')[0].slice(0, 3)}
                           </span>
                           <div className="flex-1 h-8 bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden relative">
-                            <div 
+                            <div
                               className={`h-full rounded-lg transition-all duration-300 ${isSelected ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}
-                              style={{ 
-                                width: `${barWidth}%`, 
+                              style={{
+                                width: `${Math.max(barWidth, 1)}%`,
                                 backgroundColor: colorHex,
                               }}
                             />
-                            <div className="absolute inset-0 flex items-center px-3">
-                              <span className={`text-sm font-bold ${barWidth > 30 ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`} style={{ marginLeft: barWidth > 30 ? '0' : `${barWidth + 2}%` }}>
-                                {winRate.toFixed(1)}%
-                              </span>
-                            </div>
+                            <span
+                              className="absolute top-1/2 -translate-y-1/2 text-sm font-bold text-slate-700 dark:text-slate-300"
+                              style={{ left: barWidth < 8 ? `calc(${barWidth}% + 12px)` : '12px' }}
+                            >
+                              {winRate.toFixed(1)}%
+                            </span>
                           </div>
                           <div className="w-20 text-right">
                             <span className={`text-xs ${isSelected ? 'text-slate-700 dark:text-slate-300 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
