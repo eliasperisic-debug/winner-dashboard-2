@@ -483,17 +483,21 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
 }) {
   const [winRateMonthFilter, setWinRateMonthFilter] = useState<string>('all');
   
-  // Get unique months from winners for the filter
+  // Get unique months from both winners AND adTotals for the filter
+  // This ensures months with 0 winners but >0 variants still appear (showing 0% win rate)
   const availableMonths = useMemo(() => {
-    return [...new Set(winners.map(w => w.month))].sort((a, b) => {
-      const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 
+    const brandKey = brand === 'KIKOFF' ? 'kikoffAds' : 'grantAds';
+    const winnerMonths = winners.map(w => w.month);
+    const adTotalMonths = adTotals.filter(a => a[brandKey] > 0).map(a => a.month);
+    return [...new Set([...winnerMonths, ...adTotalMonths])].sort((a, b) => {
+      const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June',
                          'July', 'August', 'September', 'October', 'November', 'December'];
       const [aMonth, aYear] = a.split(' ');
       const [bMonth, bYear] = b.split(' ');
       if (aYear !== bYear) return parseInt(aYear) - parseInt(bYear);
       return monthOrder.indexOf(aMonth) - monthOrder.indexOf(bMonth);
     });
-  }, [winners]);
+  }, [winners, adTotals, brand]);
   
   // Calculate win rate data (Video only - no tracking for static ad totals)
   const winRateData = useMemo(() => {
@@ -979,8 +983,10 @@ function ComparisonView({ kikoffWinners, grantWinners, allWinners, adTotals }: {
 
   // Calculate win rates for comparison view (Video only - no static ad totals)
   const winRates = useMemo(() => {
-    // Get unique months from winners
-    const months = [...new Set(allWinners.map(w => w.month))];
+    // Get unique months from both winners AND adTotals
+    const winnerMonths = allWinners.map(w => w.month);
+    const adTotalMonths = adTotals.map(a => a.month);
+    const months = [...new Set([...winnerMonths, ...adTotalMonths])];
 
     // Only count Video winners for win rate
     let kikoffWins = kikoffVideoWinners.length;

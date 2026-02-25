@@ -62,7 +62,7 @@ export async function getWinners(): Promise<Winner[]> {
     ifBroll: row[13] || '',
     notes: row[14] || '',
     videoUrl: row[15] || '',
-  })).reverse();
+  })).filter(w => isOnOrAfterJuly2025(w.month)).reverse();
 }
 
 // Monthly variant totals for win rate calculations
@@ -113,6 +113,18 @@ function normalizeMonth(dateStr: string): string | null {
   return MONTH_MAP[monthPart] || null;
 }
 
+// Only include data from July 2025 onward
+const MONTH_ORDER = ['January', 'February', 'March', 'April', 'May', 'June',
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+
+function isOnOrAfterJuly2025(monthStr: string): boolean {
+  const [month, yearStr] = monthStr.split(' ');
+  const year = parseInt(yearStr);
+  if (year > 2025) return true;
+  if (year === 2025) return MONTH_ORDER.indexOf(month) >= MONTH_ORDER.indexOf('July');
+  return false;
+}
+
 export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
   try {
     // Fetch from both tabs of the variant tracking sheet
@@ -123,7 +135,7 @@ export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: VARIANT_SHEET_ID,
-        range: '2026!A:F', // 2026 tab (Jan-Feb 2026)
+        range: '2026!A:F', // 2026 tab (Jan onward)
       }),
     ]);
 
@@ -167,6 +179,7 @@ export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
                         'July', 'August', 'September', 'October', 'November', 'December'];
 
     return Object.entries(monthlyData)
+      .filter(([month]) => isOnOrAfterJuly2025(month))
       .map(([month, data]): MonthlyAdTotals => ({
         month,
         kikoffAds: data.kikoff,
