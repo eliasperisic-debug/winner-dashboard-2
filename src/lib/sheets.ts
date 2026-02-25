@@ -123,7 +123,7 @@ export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: VARIANT_SHEET_ID,
-        range: 'A:F', // Default tab (Jan-Feb 2026)
+        range: '2026!A:F', // 2026 tab (Jan-Feb 2026)
       }),
     ]);
 
