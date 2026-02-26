@@ -408,20 +408,20 @@ function AnalyticsRow({ label, count, total, colorHex, winners, brandColor }: An
 }
 
 // Simple bar chart component
-function SimpleBarChart({ data, colorHex, maxItems = 6 }: { data: [string, number][]; colorHex: string; maxItems?: number }) {
+function SimpleBarChart({ data, colorHex, colorMap, maxItems = 6 }: { data: [string, number][]; colorHex: string; colorMap?: Record<string, string>; maxItems?: number }) {
   const maxValue = Math.max(...data.map(d => d[1]), 1);
-  
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {data.slice(0, maxItems).map(([label, value]) => (
-        <div key={label} className="flex items-center gap-2">
-          <div className="w-24 text-xs text-slate-600 dark:text-slate-400 truncate text-right">{label}</div>
-          <div className="flex-1 h-6 bg-slate-100 dark:bg-slate-700 rounded overflow-hidden relative">
-            <div 
-              className="h-full rounded transition-all" 
-              style={{ width: `${(value / maxValue) * 100}%`, backgroundColor: colorHex }} 
+        <div key={label} className="flex items-center gap-3">
+          <div className="w-28 text-sm text-slate-600 dark:text-slate-400 truncate text-right font-medium">{label}</div>
+          <div className="flex-1 h-8 bg-slate-100 dark:bg-slate-700 rounded-md overflow-hidden relative">
+            <div
+              className="h-full rounded-md transition-all"
+              style={{ width: `${(value / maxValue) * 100}%`, backgroundColor: colorMap?.[label] || colorHex }}
             />
-            <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-slate-700 dark:text-slate-200">
+            <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-700 dark:text-slate-200">
               {value}
             </span>
           </div>
@@ -926,11 +926,12 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
           </div>
           <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-6 border border-amber-200 dark:border-amber-800 flex flex-col">
             <h4 className="text-base font-bold text-amber-800 dark:text-amber-200 mb-4 text-center">Persona Counts</h4>
-            <div className="flex-1 flex items-center">
+            <div className="flex-1 flex items-center justify-center">
               <div className="w-full">
                 <SimpleBarChart
                   data={personaCounts.map(([persona, count]) => [persona, count])}
                   colorHex="#f59e0b"
+                  colorMap={PERSONA_COLORS}
                   maxItems={4}
                 />
               </div>
