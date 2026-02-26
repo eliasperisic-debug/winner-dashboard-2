@@ -9,7 +9,7 @@ interface ChipProps {
 
 function Chip({ children, className = '' }: ChipProps) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${className}`}>
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium ${className}`}>
       {children}
     </span>
   );
@@ -19,7 +19,7 @@ function Chip({ children, className = '' }: ChipProps) {
 export function BrandChip({ brand }: { brand: string }) {
   if (brand === 'KIKOFF') {
     return (
-      <span className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-[#00C853]/15 text-[#00913a] dark:bg-[#00C853]/25 dark:text-[#4ade80] ring-1 ring-[#00C853]/30">
+      <span className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-sm font-semibold bg-[#00C853]/15 text-[#00913a] dark:bg-[#00C853]/25 dark:text-[#4ade80] ring-1 ring-[#00C853]/30">
         <img src="/kikoff-logo.png" alt="" className="w-3 h-3 rounded-sm flex-shrink-0" />
         <span>{brand}</span>
       </span>
@@ -27,7 +27,7 @@ export function BrandChip({ brand }: { brand: string }) {
   }
   if (brand === 'GRANT') {
     return (
-      <span className="inline-flex items-center justify-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-400/20 text-amber-700 dark:bg-amber-400/25 dark:text-amber-300 ring-1 ring-amber-500/30">
+      <span className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-sm font-semibold bg-amber-400/20 text-amber-700 dark:bg-amber-400/25 dark:text-amber-300 ring-1 ring-amber-500/30">
         <img src="/grant-logo.png" alt="" className="w-3 h-3 rounded-sm flex-shrink-0" />
         <span>{brand}</span>
       </span>
@@ -40,13 +40,13 @@ export function BrandChip({ brand }: { brand: string }) {
 export function TypeChip({ type }: { type: 'Video' | 'Static' }) {
   if (type === 'Static') {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-cyan-500/15 text-cyan-600 dark:bg-cyan-400/20 dark:text-cyan-300 ring-1 ring-cyan-500/20">
+      <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-semibold bg-cyan-500/15 text-cyan-600 dark:bg-cyan-400/20 dark:text-cyan-300 ring-1 ring-cyan-500/20">
         Static
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-violet-500/15 text-violet-600 dark:bg-violet-400/20 dark:text-violet-300 ring-1 ring-violet-500/20">
+    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-semibold bg-violet-500/15 text-violet-600 dark:bg-violet-400/20 dark:text-violet-300 ring-1 ring-violet-500/20">
       Video
     </span>
   );
@@ -180,7 +180,7 @@ export function MonthChip({ month }: { month: string }) {
   if (colors) {
     return (
       <span
-        className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium"
+        className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium"
         style={{ backgroundColor: colors.bg, color: colors.text }}
       >
         {month}

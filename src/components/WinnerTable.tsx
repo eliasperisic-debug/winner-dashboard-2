@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Fragment, useEffect } from 'react';
+import { useState, useMemo, Fragment, useEffect, useRef } from 'react';
 import { Winner } from '@/types/winner';
 import {
   BrandChip,
@@ -87,6 +87,82 @@ function getAllThemeTags(winners: Winner[]): string[] {
   return [...tagSet].sort();
 }
 
+const PERSONA_OPTIONS = ['Bill-Timing Juggler', 'Speed-First Professional', 'Family Protector', 'Essentials User'];
+
+function PersonaMultiSelect({ selected, onChange }: { selected: Set<string>; onChange: (s: Set<string>) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const label = selected.size === 0
+    ? 'All Personas'
+    : selected.size === 1
+      ? [...selected][0]
+      : `${selected.size} Personas`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 transition-all flex items-center gap-2 whitespace-nowrap"
+      >
+        {label}
+        <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg z-50 min-w-[220px] py-1">
+          <button
+            onClick={() => { onChange(new Set()); setOpen(false); }}
+            className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors ${
+              selected.size === 0 ? 'font-semibold text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-200'
+            }`}
+          >
+            All Personas
+          </button>
+          <div className="border-t border-slate-100 dark:border-slate-600 my-1" />
+          {PERSONA_OPTIONS.map(persona => {
+            const isActive = selected.has(persona);
+            return (
+              <button
+                key={persona}
+                onClick={() => {
+                  const next = new Set(selected);
+                  if (next.has(persona)) next.delete(persona);
+                  else next.add(persona);
+                  onChange(next);
+                }}
+                className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors flex items-center gap-2 ${
+                  isActive ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                  isActive ? 'bg-blue-500 border-blue-500' : 'border-slate-300 dark:border-slate-500'
+                }`}>
+                  {isActive && (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                {persona}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, initialBrandFilter }: WinnerTableProps) {
   const [search, setSearch] = useState('');
   const [brandFilter, setBrandFilter] = useState<string>(initialBrandFilter || 'all');
@@ -94,6 +170,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
   const [monthsFilter, setMonthsFilter] = useState<string[] | null>(initialMonthsFilter || null);
   const [executionFilter, setExecutionFilter] = useState<string>('all');
   const [themeFilter, setThemeFilter] = useState<string>('all');
+  const [personaFilters, setPersonaFilters] = useState<Set<string>>(new Set());
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   // Track locally updated themes (optimistic updates)
   const [updatedThemes, setUpdatedThemes] = useState<Record<string, string>>({});
@@ -221,10 +298,13 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
       const matchesExecution = executionFilter === 'all' || winner.execution === executionFilter;
       // Use theme with updates applied
       const matchesTheme = themeFilter === 'all' || parseThemeTags(currentTheme).includes(themeFilter);
+      const matchesPersona = personaFilters.size === 0 || (
+        winner.persona ? winner.persona.split(',').map(p => p.trim()).some(p => personaFilters.has(p)) : false
+      );
 
-      return matchesSearch && matchesBrand && matchesMonth && matchesExecution && matchesTheme;
+      return matchesSearch && matchesBrand && matchesMonth && matchesExecution && matchesTheme && matchesPersona;
     });
-  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter, updatedThemes]);
+  }, [winners, search, brandFilter, monthFilter, monthsFilter, executionFilter, themeFilter, updatedThemes, personaFilters]);
 
   // Separate pinned from non-pinned filtered winners
   const pinnedFilteredWinners = useMemo(() => {
@@ -326,6 +406,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
               <option key={tag} value={tag}>{tag}</option>
             ))}
           </select>
+          <PersonaMultiSelect selected={personaFilters} onChange={setPersonaFilters} />
           {pinnedIds.size > 0 && (
             <>
               <button
@@ -352,9 +433,9 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
               </button>
             </>
           )}
-          {(brandFilter !== 'all' || monthFilter !== 'all' || executionFilter !== 'all' || themeFilter !== 'all' || search !== '') && (
+          {(brandFilter !== 'all' || monthFilter !== 'all' || executionFilter !== 'all' || themeFilter !== 'all' || personaFilters.size > 0 || search !== '') && (
             <button
-              onClick={() => { setBrandFilter('all'); setMonthFilter('all'); setExecutionFilter('all'); setThemeFilter('all'); setSearch(''); }}
+              onClick={() => { setBrandFilter('all'); setMonthFilter('all'); setExecutionFilter('all'); setThemeFilter('all'); setPersonaFilters(new Set()); setSearch(''); }}
               className="px-3 py-2 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline"
             >
               Clear all
@@ -496,18 +577,18 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
           <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
             <thead className="bg-slate-50 dark:bg-slate-900/50">
               <tr>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Month</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Brand</th>
-                <th className="px-1.5 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Title</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Theme</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Var</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Dur</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Mention</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Exec</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Caps</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Product UI</th>
-                <th className="px-2 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Music</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Month</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Brand</th>
+                <th className="px-1.5 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Type</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Title</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Theme</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Var</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Dur</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Mention</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Exec</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Caps</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Product UI</th>
+                <th className="px-2 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Music</th>
               </tr>
             </thead>
             <tbody key={`tbody-${search}-${filteredWinners.length}-${pinnedIds.size}`} className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -582,7 +663,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                               </svg>
                             </span>
                           )}
-                          <div className="text-sm text-slate-700 dark:text-slate-200 font-medium">
+                          <div className="text-base text-slate-700 dark:text-slate-200 font-medium">
                             {winner.ticket}
                           </div>
                         </div>
@@ -736,7 +817,7 @@ export function WinnerTable({ winners, initialMonthFilter, initialMonthsFilter, 
                               </svg>
                             </span>
                           )}
-                          <div className="text-sm text-slate-700 dark:text-slate-200 font-medium">
+                          <div className="text-base text-slate-700 dark:text-slate-200 font-medium">
                             {winner.ticket}
                           </div>
                         </div>

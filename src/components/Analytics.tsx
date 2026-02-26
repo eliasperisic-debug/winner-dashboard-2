@@ -431,24 +431,34 @@ function SimpleBarChart({ data, colorHex, maxItems = 6 }: { data: [string, numbe
   );
 }
 
-// Donut chart using CSS
-function DonutChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+// Donut chart using CSS with clickable persona labels
+function DonutChart({ data, selectedPersona, onPersonaClick, winners, brandColor }: {
+  data: { label: string; value: number; color: string }[];
+  selectedPersona?: string | null;
+  onPersonaClick?: (persona: string) => void;
+  winners?: Winner[];
+  brandColor?: string;
+}) {
   const total = data.reduce((sum, d) => sum + d.value, 0);
   let currentAngle = 0;
-  
+
   const segments = data.map((d) => {
     const angle = (d.value / total) * 360;
     const segment = { ...d, startAngle: currentAngle, angle };
     currentAngle += angle;
     return segment;
   });
-  
+
   const gradientStops = segments.map(s => {
     const start = s.startAngle;
     const end = s.startAngle + s.angle;
     return `${s.color} ${start}deg ${end}deg`;
   }).join(', ');
-  
+
+  const selectedWinners = selectedPersona && winners
+    ? winners.filter(w => w.persona?.includes(selectedPersona))
+    : [];
+
   return (
     <div className="flex flex-col items-center gap-4">
       <div
@@ -459,15 +469,35 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
           <span className="text-2xl font-bold text-slate-700 dark:text-slate-200">{total}</span>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 w-full">
         {data.map(d => (
-          <div key={d.label} className="flex items-center gap-1.5 text-sm">
+          <button
+            key={d.label}
+            onClick={() => onPersonaClick?.(d.label)}
+            className={`flex items-center gap-1.5 text-sm text-left rounded-lg px-2 py-1.5 transition-all ${
+              selectedPersona === d.label
+                ? 'bg-white dark:bg-slate-700 shadow-sm ring-1 ring-slate-200 dark:ring-slate-600'
+                : 'hover:bg-white/60 dark:hover:bg-slate-700/40'
+            }`}
+          >
             <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: d.color }} />
-            <span className="text-slate-600 dark:text-slate-400">{d.label}</span>
-            <span className="font-semibold text-slate-700 dark:text-slate-300">{d.value}</span>
-          </div>
+            <span className={`truncate ${selectedPersona === d.label ? 'font-semibold text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-400'}`}>{d.label}</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300 ml-auto">{d.value}</span>
+          </button>
         ))}
       </div>
+      {selectedPersona && selectedWinners.length > 0 && (
+        <div className="w-full mt-1 pt-3 border-t border-amber-200 dark:border-amber-700">
+          <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-2">
+            {selectedWinners.length} video{selectedWinners.length !== 1 ? 's' : ''} tagged as {selectedPersona}:
+          </p>
+          <div className="grid gap-2 max-h-[200px] overflow-y-auto pr-1">
+            {selectedWinners.map((w, i) => (
+              <WinnerMiniCard key={`${w.ticket}-${i}`} winner={w} brandColor={brandColor || 'border-amber-500'} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -489,6 +519,7 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
   timeFilter: string;
 }) {
   const [winRateMonthFilter, setWinRateMonthFilter] = useState<string>('all');
+  const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
   
   // Get unique months from both winners AND adTotals for the filter
   // This ensures months with 0 winners but >0 variants still appear (showing 0% win rate)
@@ -885,6 +916,10 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
                   value: count,
                   color: PERSONA_COLORS[persona] || '#94a3b8'
                 }))}
+                selectedPersona={selectedPersona}
+                onPersonaClick={(p) => setSelectedPersona(selectedPersona === p ? null : p)}
+                winners={winnersWithPersona}
+                brandColor={borderColor}
               />
             </div>
             <p className="text-[10px] text-amber-600 dark:text-amber-400 text-center mt-3 italic">*Multiple personas per video</p>
