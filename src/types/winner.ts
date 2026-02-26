@@ -16,6 +16,7 @@ export interface Winner {
   ifBroll: string;
   notes: string;
   videoUrl: string;
+  persona?: string;
 }
 
 export type FilterOptions = {

@@ -450,27 +450,34 @@ function DonutChart({ data }: { data: { label: string; value: number; color: str
   }).join(', ');
   
   return (
-    <div className="flex items-center gap-4">
-      <div 
-        className="w-24 h-24 rounded-full relative"
+    <div className="flex flex-col items-center gap-4">
+      <div
+        className="w-44 h-44 rounded-full relative"
         style={{ background: `conic-gradient(${gradientStops})` }}
       >
-        <div className="absolute inset-3 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center">
-          <span className="text-lg font-bold text-slate-700 dark:text-slate-200">{total}</span>
+        <div className="absolute inset-5 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center">
+          <span className="text-2xl font-bold text-slate-700 dark:text-slate-200">{total}</span>
         </div>
       </div>
-      <div className="space-y-1">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1">
         {data.map(d => (
-          <div key={d.label} className="flex items-center gap-2 text-xs">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: d.color }} />
+          <div key={d.label} className="flex items-center gap-1.5 text-sm">
+            <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: d.color }} />
             <span className="text-slate-600 dark:text-slate-400">{d.label}</span>
-            <span className="font-medium text-slate-700 dark:text-slate-300">{d.value}</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">{d.value}</span>
           </div>
         ))}
       </div>
     </div>
   );
 }
+
+const PERSONA_COLORS: Record<string, string> = {
+  'Bill-Timing Juggler': '#f59e0b',
+  'Speed-First Professional': '#3b82f6',
+  'Family Protector': '#10b981',
+  'Essentials User': '#8b5cf6',
+};
 
 // Single brand detailed view with expandable rows showing winners
 function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, timeFilter }: { 
@@ -634,6 +641,19 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
   }, [winners]);
   
+  // Persona counts (Grant only) - split multi-persona values and count each individually
+  const winnersWithPersona = useMemo(() => winners.filter(w => w.persona), [winners]);
+  const personaCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    winnersWithPersona.forEach(w => {
+      const personas = w.persona!.split(',').map(p => p.trim()).filter(Boolean);
+      personas.forEach(p => {
+        counts[p] = (counts[p] || 0) + 1;
+      });
+    });
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [winnersWithPersona]);
+
   // Mention timing groups
   const getMentionRange = (m: number) => {
     if (m <= 3) return '1-3s (Early)';
@@ -853,6 +873,38 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
         </div>
       </div>
       
+      {/* Grant Persona Charts */}
+      {brand === 'GRANT' && personaCounts.length > 0 && (
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-6 border border-amber-200 dark:border-amber-800 flex flex-col">
+            <h4 className="text-base font-bold text-amber-800 dark:text-amber-200 mb-4 text-center">Persona Distribution</h4>
+            <div className="flex-1 flex items-center justify-center">
+              <DonutChart
+                data={personaCounts.map(([persona, count]) => ({
+                  label: persona,
+                  value: count,
+                  color: PERSONA_COLORS[persona] || '#94a3b8'
+                }))}
+              />
+            </div>
+            <p className="text-[10px] text-amber-600 dark:text-amber-400 text-center mt-3 italic">*Multiple personas per video</p>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-6 border border-amber-200 dark:border-amber-800 flex flex-col">
+            <h4 className="text-base font-bold text-amber-800 dark:text-amber-200 mb-4 text-center">Persona Counts</h4>
+            <div className="flex-1 flex items-center">
+              <div className="w-full">
+                <SimpleBarChart
+                  data={personaCounts.map(([persona, count]) => [persona, count])}
+                  colorHex="#f59e0b"
+                  maxItems={4}
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-amber-600 dark:text-amber-400 text-center mt-3 italic">*Multiple personas per video</p>
+          </div>
+        </div>
+      )}
+
       {/* Detailed Breakdown Sections - click to expand and see winners */}
       <div className="grid grid-cols-2 gap-6">
         {/* Duration (Video only) */}
@@ -969,6 +1021,32 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
             )}
           </div>
         </div>
+
+        {/* Persona Breakdown (Grant only) */}
+        {brand === 'GRANT' && personaCounts.length > 0 && (
+          <div className="col-span-2">
+            <h4 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-3 uppercase tracking-wide">
+              Persona Breakdown
+            </h4>
+            <div className="space-y-1">
+              {personaCounts.map(([persona, count]) => {
+                const totalMentions = personaCounts.reduce((sum, [, c]) => sum + c, 0);
+                return (
+                  <AnalyticsRow
+                    key={persona}
+                    label={persona}
+                    count={count}
+                    total={totalMentions}
+                    colorHex={PERSONA_COLORS[persona] || '#94a3b8'}
+                    winners={winnersWithPersona.filter(w => w.persona!.includes(persona))}
+                    brandColor={borderColor}
+                  />
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-2 italic">*Multiple personas per video</p>
+          </div>
+        )}
       </div>
     </div>
   );

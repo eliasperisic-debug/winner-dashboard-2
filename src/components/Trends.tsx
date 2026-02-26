@@ -56,6 +56,15 @@ const EXEC_COLORS: Record<string, string> = {
   'Unknown': '#94a3b8',
 };
 
+// Grant persona tracking
+const GRANT_PERSONAS = ['Bill-Timing Juggler', 'Speed-First Professional', 'Family Protector', 'Essentials User'];
+const PERSONA_COLORS: Record<string, string> = {
+  'Bill-Timing Juggler': '#f59e0b',
+  'Speed-First Professional': '#3b82f6',
+  'Family Protector': '#10b981',
+  'Essentials User': '#8b5cf6',
+};
+
 // 5 distinct theme colors - assigned to active/selected themes only
 const THEME_COLORS = [
   '#f43f5e', // Rose/Red
@@ -203,6 +212,34 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
     });
   }, [chartData, allExecutions, brandFilter]);
   
+  // Prepare persona trend data (Grant only, split multi-persona values)
+  const personaData = useMemo(() => {
+    if (brandFilter !== 'GRANT') return [];
+    const grantWinners = winners.filter(w => w.brand === 'GRANT' && w.persona);
+    if (grantWinners.length === 0) return [];
+
+    // Group by month, splitting comma-separated personas
+    const monthMap: Record<string, Record<string, number>> = {};
+    grantWinners.forEach(w => {
+      if (!monthMap[w.month]) monthMap[w.month] = {};
+      const personas = w.persona!.split(',').map(p => p.trim()).filter(Boolean);
+      personas.forEach(p => {
+        monthMap[w.month][p] = (monthMap[w.month][p] || 0) + 1;
+      });
+    });
+
+    // Use chartData month order for consistency
+    return chartData
+      .filter(d => monthMap[d.month])
+      .map(d => {
+        const point: Record<string, any> = { name: d.name, shortMonth: d.shortMonth };
+        GRANT_PERSONAS.forEach(p => {
+          point[p] = monthMap[d.month]?.[p] || 0;
+        });
+        return point;
+      });
+  }, [winners, chartData, brandFilter]);
+
   // Prepare theme trend data (monthly)
   const themeData = useMemo(() => {
     return chartData.map(d => {
@@ -999,6 +1036,44 @@ export function Trends({ winners, adTotals, onDrillDown, onQuarterDrillDown }: T
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* Persona Trends (Grant only) */}
+      {brandFilter === 'GRANT' && personaData.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-6 shadow-sm border border-amber-200 dark:border-amber-800">
+          <div className="flex items-baseline gap-2 mb-4">
+            <h3 className="text-lg font-semibold text-amber-800 dark:text-amber-200">Persona Trends</h3>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 italic">*Multiple personas per video</span>
+          </div>
+          <div className="h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={personaData} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="shortMonth"
+                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tickLine={{ stroke: '#cbd5e1' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tickLine={{ stroke: '#cbd5e1' }}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: '11px' }} />
+                {GRANT_PERSONAS.map((persona) => (
+                  <Bar
+                    key={persona}
+                    dataKey={persona}
+                    name={persona}
+                    fill={PERSONA_COLORS[persona]}
+                    radius={[3, 3, 0, 0]}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
 
       {/* Theme Trends - Full Width with Sidebar */}
       <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">

@@ -2,6 +2,13 @@
 
 import { useState, useCallback } from 'react';
 
+const GRANT_PERSONAS = [
+  'Bill-Timing Juggler',
+  'Speed-First Professional',
+  'Family Protector',
+  'Essentials User',
+] as const;
+
 interface AddWinnerFormProps {
   onClose: () => void;
   onSuccess: () => void;
@@ -31,10 +38,16 @@ export function AddWinnerForm({ onClose, onSuccess }: AddWinnerFormProps) {
     ifBroll: '',
     notes: '',
     videoUrl: '',
+    persona: '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'brand' && value !== 'GRANT') {
+      setFormData({ ...formData, [name]: value, persona: '' });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -338,6 +351,26 @@ export function AddWinnerForm({ onClose, onSuccess }: AddWinnerFormProps) {
               />
             </div>
           </div>
+
+          {/* Grant Persona */}
+          {formData.brand === 'GRANT' && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
+              <label className="block text-xs font-medium text-amber-800 dark:text-amber-200 mb-1.5">
+                Target Persona
+              </label>
+              <select
+                name="persona"
+                value={formData.persona}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 rounded-xl border border-amber-200 dark:border-amber-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm"
+              >
+                <option value="">Select persona...</option>
+                {GRANT_PERSONAS.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Ticket & Theme */}
           <div className="grid grid-cols-2 gap-3">

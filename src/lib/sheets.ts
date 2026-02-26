@@ -31,7 +31,7 @@ const sheets = google.sheets({ version: 'v4', auth });
 export async function getWinners(): Promise<Winner[]> {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-    range: 'Sheet1!A2:Q', // Skip header row, include VIDEO_URL and TYPE columns
+    range: 'Sheet1!A2:R', // Skip header row, include VIDEO_URL, TYPE, and PERSONA columns
   });
 
   const rows = response.data.values || [];
@@ -62,6 +62,7 @@ export async function getWinners(): Promise<Winner[]> {
     ifBroll: row[13] || '',
     notes: row[14] || '',
     videoUrl: row[15] || '',
+    persona: row[17] || '',
   })).filter(w => isOnOrAfterJuly2025(w.month)).reverse();
 }
 

@@ -32,12 +32,13 @@ export async function POST(request: NextRequest) {
       ifBroll,
       notes,
       videoUrl,
+      persona,
     } = body;
 
     // Append row to Google Sheet
     await sheets.spreadsheets.values.append({
       spreadsheetId: process.env.GOOGLE_SHEETS_ID,
-      range: 'Sheet1!A:P',
+      range: 'Sheet1!A:R',
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
@@ -57,6 +58,8 @@ export async function POST(request: NextRequest) {
           ifBroll,
           notes,
           videoUrl || '',
+          'Video',
+          persona || '',
         ]],
       },
     });

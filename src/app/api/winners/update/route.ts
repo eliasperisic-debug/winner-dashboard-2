@@ -42,6 +42,8 @@ const COLUMN_MAP: Record<string, string> = {
   ifBroll: 'N',
   notes: 'O',
   videoUrl: 'P',
+  type: 'Q',
+  persona: 'R',
 };
 
 export async function PATCH(request: NextRequest) {
