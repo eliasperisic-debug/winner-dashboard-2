@@ -1549,6 +1549,15 @@ export function Analytics({ winners, adTotals }: AnalyticsProps) {
     return filtered;
   }, [winners, timeFilter, themeFilter]);
 
+  const filteredAdTotals = useMemo(() => {
+    if (timeFilter === 'all') return adTotals;
+    if (timeFilter.startsWith('Q')) {
+      const monthsInQuarter = getMonthsInQuarter(timeFilter);
+      return adTotals.filter(a => monthsInQuarter.includes(a.month));
+    }
+    return adTotals.filter(a => a.month === timeFilter);
+  }, [adTotals, timeFilter]);
+
   const kikoffWinners = useMemo(() => filteredWinners.filter(w => w.brand === 'KIKOFF'), [filteredWinners]);
   const grantWinners = useMemo(() => filteredWinners.filter(w => w.brand === 'GRANT'), [filteredWinners]);
 
@@ -1653,23 +1662,23 @@ export function Analytics({ winners, adTotals }: AnalyticsProps) {
 
       {/* Content based on brand view */}
       {brandView === 'all' ? (
-        <ComparisonView kikoffWinners={kikoffWinners} grantWinners={grantWinners} allWinners={filteredWinners} adTotals={adTotals} />
+        <ComparisonView kikoffWinners={kikoffWinners} grantWinners={grantWinners} allWinners={filteredWinners} adTotals={filteredAdTotals} />
       ) : brandView === 'KIKOFF' ? (
-        <BrandDetailView 
-          winners={kikoffWinners} 
-          brand="KIKOFF" 
+        <BrandDetailView
+          winners={kikoffWinners}
+          brand="KIKOFF"
           colorHex="#00C853"
           borderColor="border-[#00C853]/30"
-          adTotals={adTotals}
+          adTotals={filteredAdTotals}
           timeFilter={timeFilter}
         />
       ) : (
-        <BrandDetailView 
-          winners={grantWinners} 
-          brand="GRANT" 
+        <BrandDetailView
+          winners={grantWinners}
+          brand="GRANT"
           colorHex="#f59e0b"
           borderColor="border-amber-400/30"
-          adTotals={adTotals}
+          adTotals={filteredAdTotals}
           timeFilter={timeFilter}
         />
       )}
