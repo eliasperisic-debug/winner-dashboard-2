@@ -72,6 +72,9 @@ export interface MonthlyAdTotals {
   kikoffAds: number;
   grantAds: number;
   totalAds: number;
+  kikoffTickets: number;
+  grantTickets: number;
+  totalTickets: number;
 }
 
 // Month name normalization map (handles abbreviations and typos)
@@ -143,8 +146,8 @@ export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
     const rows2025 = response2025.data.values || [];
     const rows2026 = response2026.data.values || [];
 
-    // Process rows and aggregate variants by month and brand
-    const monthlyData: Record<string, { kikoff: number; grant: number }> = {};
+    // Process rows and aggregate variants + tickets by month and brand
+    const monthlyData: Record<string, { kikoff: number; grant: number; kikoffTickets: number; grantTickets: number }> = {};
 
     const processRows = (rows: string[][], year: string) => {
       // Skip header row
@@ -161,13 +164,15 @@ export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
         const monthKey = `${normalizedMonth} ${year}`;
 
         if (!monthlyData[monthKey]) {
-          monthlyData[monthKey] = { kikoff: 0, grant: 0 };
+          monthlyData[monthKey] = { kikoff: 0, grant: 0, kikoffTickets: 0, grantTickets: 0 };
         }
 
         if (brand === 'kikoff') {
           monthlyData[monthKey].kikoff += totalVariants;
+          monthlyData[monthKey].kikoffTickets += 1;
         } else if (brand === 'grant') {
           monthlyData[monthKey].grant += totalVariants;
+          monthlyData[monthKey].grantTickets += 1;
         }
       });
     };
@@ -186,6 +191,9 @@ export async function getMonthlyAdTotals(): Promise<MonthlyAdTotals[]> {
         kikoffAds: data.kikoff,
         grantAds: data.grant,
         totalAds: data.kikoff + data.grant,
+        kikoffTickets: data.kikoffTickets,
+        grantTickets: data.grantTickets,
+        totalTickets: data.kikoffTickets + data.grantTickets,
       }))
       .sort((a, b) => {
         const [aMonth, aYear] = a.month.split(' ');

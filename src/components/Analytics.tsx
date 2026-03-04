@@ -519,6 +519,7 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
   timeFilter: string;
 }) {
   const [winRateMonthFilter, setWinRateMonthFilter] = useState<string>('all');
+  const [winRateMode, setWinRateMode] = useState<'variants' | 'tickets'>('variants');
   const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
   
   // Get unique months from both winners AND adTotals for the filter
@@ -539,7 +540,9 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
   
   // Calculate win rate data (Video only - no tracking for static ad totals)
   const winRateData = useMemo(() => {
-    const brandKey = brand === 'KIKOFF' ? 'kikoffAds' : 'grantAds';
+    const variantKey = brand === 'KIKOFF' ? 'kikoffAds' : 'grantAds';
+    const ticketKey = brand === 'KIKOFF' ? 'kikoffTickets' : 'grantTickets';
+    const isTicketMode = winRateMode === 'tickets';
 
     // Use all available months, or filter by winRateMonthFilter
     const monthsToInclude = winRateMonthFilter === 'all' ? availableMonths : [winRateMonthFilter];
@@ -549,13 +552,26 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
     const monthlyData: { month: string; winners: number; variants: number; winRate: number }[] = [];
 
     monthsToInclude.forEach(month => {
-      // Only count Video winners for win rate (no static ad totals available)
-      const monthWinners = winners.filter(w => w.month === month && w.type === 'Video').length;
       // Flexible month matching - try exact match, then month-only match
       const monthOnly = month.split(' ')[0];
       const adTotalEntry = adTotals.find(a => a.month === month || a.month === monthOnly || a.month.split(' ')[0] === monthOnly);
-      const monthAds = adTotalEntry ? adTotalEntry[brandKey] : 0;
-      
+
+      let monthWinners: number;
+      let monthAds: number;
+
+      if (isTicketMode) {
+        // Count unique ticket values among Video winners for this month
+        const uniqueTickets = new Set(
+          winners.filter(w => w.month === month && w.type === 'Video').map(w => w.ticket)
+        );
+        monthWinners = uniqueTickets.size;
+        monthAds = adTotalEntry ? adTotalEntry[ticketKey] : 0;
+      } else {
+        // Original variant-based calculation
+        monthWinners = winners.filter(w => w.month === month && w.type === 'Video').length;
+        monthAds = adTotalEntry ? adTotalEntry[variantKey] : 0;
+      }
+
       if (monthAds > 0) {
         totalWinners += monthWinners;
         totalAdsCount += monthAds;
@@ -567,16 +583,16 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
         });
       }
     });
-    
+
     const overallWinRate = totalAdsCount > 0 ? (totalWinners / totalAdsCount) * 100 : 0;
-    
+
     return {
       overallWinRate,
       totalWinners,
       totalAds: totalAdsCount,
       monthlyData
     };
-  }, [winners, adTotals, brand, winRateMonthFilter, availableMonths]);
+  }, [winners, adTotals, brand, winRateMonthFilter, winRateMode, availableMonths]);
   
   // Reset win rate month filter when time filter changes
   useMemo(() => {
@@ -764,7 +780,7 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
               <span className="text-2xl font-semibold text-slate-400">%</span>
             </div>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-              <span className="font-semibold text-slate-700 dark:text-slate-300">{winRateData.totalWinners}</span> winners from <span className="font-semibold text-slate-700 dark:text-slate-300">{winRateData.totalAds}</span> variants
+              <span className="font-semibold text-slate-700 dark:text-slate-300">{winRateData.totalWinners}</span> winners from <span className="font-semibold text-slate-700 dark:text-slate-300">{winRateData.totalAds}</span> {winRateMode === 'tickets' ? 'tickets' : 'variants'}
             </p>
             {winRateData.totalAds === 0 && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
@@ -805,16 +821,32 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
           <div className="col-span-2 p-6">
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Monthly Performance</span>
-              <select
-                value={winRateMonthFilter}
-                onChange={(e) => setWinRateMonthFilter(e.target.value)}
-                className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-white text-xs"
-              >
-                <option value="all">All Months</option>
-                {availableMonths.map(month => (
-                  <option key={month} value={month}>{month}</option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <div className="flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-700/80">
+                  <button
+                    onClick={() => setWinRateMode('variants')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 ${winRateMode === 'variants' ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                  >
+                    Variants
+                  </button>
+                  <button
+                    onClick={() => setWinRateMode('tickets')}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all duration-200 ${winRateMode === 'tickets' ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-white shadow-sm' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'}`}
+                  >
+                    Tickets
+                  </button>
+                </div>
+                <select
+                  value={winRateMonthFilter}
+                  onChange={(e) => setWinRateMonthFilter(e.target.value)}
+                  className="px-2 py-1 rounded-md border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-700 dark:text-white text-xs"
+                >
+                  <option value="all">All Months</option>
+                  {availableMonths.map(month => (
+                    <option key={month} value={month}>{month}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             
             {winRateData.monthlyData.length > 0 ? (
@@ -852,7 +884,7 @@ function BrandDetailView({ winners, brand, colorHex, borderColor, adTotals, time
                           </div>
                           <div className="w-20 text-right">
                             <span className={`text-xs ${isSelected ? 'text-slate-700 dark:text-slate-300 font-medium' : 'text-slate-500 dark:text-slate-400'}`}>
-                              {w}/{variants} variants
+                              {w}/{variants} {winRateMode === 'tickets' ? 'tickets' : 'variants'}
                             </span>
                           </div>
                         </div>
